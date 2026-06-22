@@ -2,32 +2,46 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Kiểm tra xem user có phải chủ sở hữu của tài liệu không
     function isOwner(uid) {
       return request.auth != null && request.auth.uid == uid;
     }
 
-    match /users/{uid} {
-      allow read: if isOwner(uid);
+    // Kiểm tra xem user hiện tại có phải là Admin không
+    function isAdmin() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
 
+    match /users/{uid} {
+      // Cho phép đọc thông tin cá nhân hoặc nếu là Admin
+      allow read: if isOwner(uid) || isAdmin();
+      
+      // Chỉ Admin mới được truy vấn danh sách tất cả học viên
+      allow list: if isAdmin();
+
+      // Khi đăng ký mới, khởi tạo ở gói cước free và hạn mức mặc định
       allow create: if isOwner(uid)
         && request.resource.data.uid == uid
         && request.resource.data.subscription.planId == 'free'
         && request.resource.data.quota.aiCredits == 3
         && request.resource.data.quota.speechMinutes == 10;
 
-      allow update: if isOwner(uid)
+      // Học viên chỉ được tự cập nhật profile cơ bản hoặc lastActiveAt. Admin có quyền cập nhật mọi trường (để nâng cấp gói cước)
+      allow update: if (isOwner(uid)
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.subscription == resource.data.subscription
         && request.resource.data.quota.aiCredits <= resource.data.quota.aiCredits
         && request.resource.data.quota.speechMinutes <= resource.data.quota.speechMinutes
         && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['name', 'level', 'specialty', 'profile', 'quota', 'avatarUrl']);
+          .hasOnly(['name', 'level', 'specialty', 'profile', 'quota', 'avatarUrl', 'lastActiveAt']))
+        || isAdmin();
 
       allow delete: if false;
     }
 
     match /progress/{uid} {
-      allow read: if isOwner(uid);
+      allow read: if isOwner(uid) || isAdmin();
       allow create: if isOwner(uid) && request.resource.data.uid == uid;
       allow update: if isOwner(uid)
         && resource.data.uid == uid
@@ -39,6 +53,29 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create, update: if isOwner(uid)
         && request.resource.data.uid == uid;
+      allow delete: if false;
+    }
+
+    match /payment_sessions/{orderCode} {
+      // Cho phép học viên đọc phiên thanh toán của mình, Admin được đọc mọi phiên
+      allow read: if (request.auth != null && resource.data.uid == request.auth.uid) || isAdmin();
+      
+      // Chỉ Admin được xem toàn bộ danh sách phiên thanh toán chờ duyệt
+      allow list: if isAdmin();
+
+      // Học viên có thể tự tạo phiên thanh toán mới ở trạng thái pending
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'pending';
+
+      // Học viên chỉ được đổi trạng thái đơn sang 'pending_approval' (nộp đơn chờ duyệt). Admin có quyền cập nhật mọi trạng thái (duyệt/hủy)
+      allow update: if (request.auth != null 
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'pending_approval'
+        && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))
+        || isAdmin();
+
       allow delete: if false;
     }
   }

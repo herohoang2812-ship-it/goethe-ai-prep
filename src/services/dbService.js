@@ -210,3 +210,16 @@ export async function syncUserLeaderboard(uid, name, avatarUrl) {
     console.error('[dbService] syncUserLeaderboard error:', err);
   }
 }
+
+/**
+ * Cập nhật thời gian hoạt động cuối cùng của học viên (DAU/Online)
+ * @param {string} uid
+ */
+export async function updateLastActive(uid) {
+  try {
+    const userDocRef = doc(db, 'users', uid);
+    await updateDoc(userDocRef, { lastActiveAt: new Date().toISOString() });
+  } catch (err) {
+    console.error('[dbService] updateLastActive error:', err);
+  }
+}

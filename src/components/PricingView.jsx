@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { BadgeCheck, Check, ChevronRight, CircleDollarSign, Copy, Info, LockKeyhole, ShieldCheck, Sparkles, X } from 'lucide-react';
 import { BILLING_DISCOUNT, formatVnd, getPlanPrice, PRICING_PLANS } from '../data/pricingPlans';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
 export default function PricingView({ showToast, currentUser, userProfile, onAuthClick }) {
@@ -11,6 +11,7 @@ export default function PricingView({ showToast, currentUser, userProfile, onAut
   const [loading, setLoading] = useState(false);
   const [activeSession, setActiveSession] = useState(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [submittingRequest, setSubmittingRequest] = useState(false);
 
   const annualSaving = Math.round(BILLING_DISCOUNT * 100);
   const pendingPlan = useMemo(() => {
@@ -25,27 +26,30 @@ export default function PricingView({ showToast, currentUser, userProfile, onAut
     const unsubscribe = onSnapshot(sessionDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
+        
+        // Nếu admin duyệt thành công
         if (data.status === 'completed') {
-          // Kích hoạt trạng thái thành công
           setIsSuccess(true);
           showToast?.('Nâng cấp tài khoản thành công! Cảm ơn bạn đã đồng hành cùng Goethe AI Prep.', 'success');
           localStorage.removeItem('goethe_pending_subscription');
           
-          // Tự động đóng popup sau 4 giây để học viên trải nghiệm giao diện chúc mừng
           setTimeout(() => {
             setSelectedPlan(null);
             setActiveSession(null);
             setIsSuccess(false);
           }, 4500);
-        } else if (data.status === 'amount_mismatch') {
-          showToast?.('Số tiền chuyển khoản không khớp. Vui lòng liên hệ bộ phận hỗ trợ học viên.', 'warning');
+        } else if (data.status === 'rejected') {
+          showToast?.('Yêu cầu thanh toán của bạn đã bị từ chối. Vui lòng kiểm tra lại giao dịch.', 'warning');
           setActiveSession(null);
+        } else if (data.status === 'pending_approval' && activeSession.status !== 'pending_approval') {
+          // Cập nhật trạng thái hiển thị nếu thay đổi từ bên ngoài
+          setActiveSession(prev => ({ ...prev, status: 'pending_approval' }));
         }
       }
     });
 
     return () => unsubscribe();
-  }, [activeSession?.orderCode, db, showToast]);
+  }, [activeSession?.orderCode, activeSession?.status, db, showToast]);
 
   const choosePlan = plan => {
     if (plan.id === 'free') return;
@@ -58,7 +62,7 @@ export default function PricingView({ showToast, currentUser, userProfile, onAut
   };
 
   const handleClose = () => {
-    if (loading) return;
+    if (loading || submittingRequest) return;
     setSelectedPlan(null);
     setActiveSession(null);
     setIsSuccess(false);
@@ -113,6 +117,25 @@ export default function PricingView({ showToast, currentUser, userProfile, onAut
     }
   };
 
+  // Học viên xác nhận đã chuyển khoản thủ công trên App ngân hàng
+  const handleSubmitApproval = async () => {
+    if (!activeSession?.orderCode || !db) return;
+    setSubmittingRequest(true);
+    try {
+      const sessionDocRef = doc(db, 'payment_sessions', String(activeSession.orderCode));
+      await updateDoc(sessionDocRef, {
+        status: 'pending_approval'
+      });
+      showToast?.('Đã gửi yêu cầu kích hoạt thành công! Vui lòng chờ quản trị viên đối chiếu và phê duyệt cước.', 'success');
+      setActiveSession(prev => ({ ...prev, status: 'pending_approval' }));
+    } catch (err) {
+      console.error('[PricingView] Error submitting payment approval:', err);
+      showToast?.('Lỗi kết nối cơ sở dữ liệu. Vui lòng thử lại.', 'warning');
+    } finally {
+      setSubmittingRequest(false);
+    }
+  };
+
   return <div className="page-section pricing-page">
     <header className="pricing-header">
       <div><span className="badge badge-primary"><Sparkles size={13}/> Premium learning</span><h1 className="content-title">Chọn gói phù hợp với nhịp học</h1><p className="content-subtitle">Nội dung học cốt lõi vẫn miễn phí. Tài khoản trả phí mở chấm bài nâng cao và luyện phát âm theo hạn mức rõ ràng.</p></div>
@@ -141,7 +164,7 @@ export default function PricingView({ showToast, currentUser, userProfile, onAut
     {selectedPlan && (
       <div className="modal-overlay pricing-modal-overlay" onClick={handleClose}>
         <div className="glass-panel panel pricing-checkout" role="dialog" aria-modal="true" aria-labelledby="checkout-title" onClick={event => event.stopPropagation()}>
-          {!loading && (
+          {!loading && !submittingRequest && (
             <button className="pricing-modal-close" onClick={handleClose} aria-label="Đóng"><X size={18}/></button>
           )}
 
@@ -167,10 +190,17 @@ export default function PricingView({ showToast, currentUser, userProfile, onAut
                   />
                 </div>
                 
-                <div className="qr-status-pulse">
-                  <div className="qr-status-dot"></div>
-                  <span>Đang chờ giao dịch từ ngân hàng...</span>
-                </div>
+                {activeSession.status === 'pending_approval' ? (
+                  <div className="qr-status-pulse" style={{ color: 'var(--warning)' }}>
+                    <div className="qr-status-dot" style={{ background: 'var(--warning)', animation: 'qr-pulse-warning 1.5s infinite' }}></div>
+                    <span>Đang chờ Admin duyệt gói cước Techcombank...</span>
+                  </div>
+                ) : (
+                  <div className="qr-status-pulse">
+                    <div className="qr-status-dot"></div>
+                    <span>Vui lòng quét QR chuyển tiền ngân hàng</span>
+                  </div>
+                )}
 
                 <div className="qr-details-list">
                   <div className="qr-detail-row">
@@ -201,10 +231,30 @@ export default function PricingView({ showToast, currentUser, userProfile, onAut
                     </span>
                   </div>
                 </div>
+                
                 <div className="checkout-warning" style={{ margin: '0' }}>
                   <Info size={16}/>
-                  <p style={{ fontSize: '11px' }}><strong>QUAN TRỌNG:</strong> Bạn cần nhập chính xác nội dung chuyển khoản màu xanh lá ở trên để hệ thống tự động nhận diện và kích hoạt gói cước.</p>
+                  <p style={{ fontSize: '11px' }}><strong>QUAN TRỌNG:</strong> Bạn cần nhập chính xác nội dung chuyển khoản màu xanh lá ở trên để Admin đối chiếu và phê duyệt kích hoạt.</p>
                 </div>
+
+                {activeSession.status !== 'pending_approval' ? (
+                  <button 
+                    className="btn btn-primary" 
+                    style={{ width: '100%', marginTop: '16px', background: 'var(--success)', borderColor: 'var(--success)' }}
+                    disabled={submittingRequest}
+                    onClick={handleSubmitApproval}
+                  >
+                    {submittingRequest ? 'Đang gửi yêu cầu...' : 'Tôi đã chuyển khoản thành công'}
+                  </button>
+                ) : (
+                  <button 
+                    className="btn" 
+                    style={{ width: '100%', marginTop: '16px', color: 'var(--text-muted)', borderColor: 'var(--border)', cursor: 'default' }}
+                    disabled
+                  >
+                    Đã gửi yêu cầu (Bạn có thể đóng cửa sổ này)
+                  </button>
+                )}
               </div>
             </div>
           ) : (

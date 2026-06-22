@@ -16,7 +16,8 @@ import {
   Crown,
   Trophy,
   LogIn,
-  LogOut
+  LogOut,
+  Shield
 } from 'lucide-react';
 import { signOutUser } from '../services/authService';
 
@@ -37,6 +38,11 @@ export default function Sidebar({ activeTab, handleTabChange, sidebarOpen, setSi
     { id: 'pricing', icon: Crown, label: 'Gói học & Nâng cấp', badge: 'PRO' },
   ];
 
+  const displayItems = [...navItems];
+  if (userProfile?.isAdmin) {
+    displayItems.push({ id: 'admin', icon: Shield, label: 'Admin Panel', badge: 'VIP' });
+  }
+
   return (
     <>
       {/* Mobile Overlay */}
@@ -55,7 +61,7 @@ export default function Sidebar({ activeTab, handleTabChange, sidebarOpen, setSi
         </div>
         
         <nav className="sidebar-menu">
-          {navItems.map(item => (
+          {displayItems.map(item => (
             <button 
               key={item.id}
               className={`sidebar-item ${activeTab === item.id ? 'active' : ''}`}

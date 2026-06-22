@@ -16,10 +16,11 @@ import PricingView from './components/PricingView';
 import AuthModal from './components/AuthModal';
 import LeaderboardView from './components/LeaderboardView';
 import ExamView from './components/ExamView';
+import AdminView from './components/AdminView';
 
 import { auth } from './services/firebase';
 import { onAuthStateChangedListener } from './services/authService';
-import { syncUserProfile, syncUserProgress, saveUserProgressOnDb, subscribeToUserProfile, syncUserLeaderboard } from './services/dbService';
+import { syncUserProfile, syncUserProgress, saveUserProgressOnDb, subscribeToUserProfile, syncUserLeaderboard, updateLastActive } from './services/dbService';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -82,6 +83,9 @@ export default function App() {
           const cloudProfile = await syncUserProfile(user.uid, localProfile);
           setUserProfile(cloudProfile);
           localStorage.setItem('goethe_user_profile', JSON.stringify(cloudProfile));
+
+          // Ghi nhận thời điểm hoạt động cuối cùng của học viên (DAU/Online)
+          updateLastActive(user.uid);
 
           // Đồng bộ bảng xếp hạng lúc đăng nhập
           await syncUserLeaderboard(user.uid, cloudProfile.name, cloudProfile.avatarUrl);
@@ -398,6 +402,13 @@ export default function App() {
             currentUser={currentUser}
             userProfile={userProfile}
             onAuthClick={() => setIsAuthModalOpen(true)}
+          />
+        )}
+
+        {activeTab === 'admin' && userProfile?.isAdmin && (
+          <AdminView 
+            currentUser={currentUser} 
+            showToast={showToast} 
           />
         )}
 
