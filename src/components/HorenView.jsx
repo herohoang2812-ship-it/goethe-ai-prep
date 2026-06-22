@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Award, BookOpen, Check, ChevronLeft, ChevronRight, Clock, Gauge, Headphones, Play, Square, X } from 'lucide-react';
 import { B2_HOREN_PARTS } from '../data/b2ExamData';
 import { recordAttempt } from '../utils/learningStore';
+import { speak, stop } from '../services/ttsService';
 
 const TOTAL_SECONDS = 40 * 60;
 const formatTime = value => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
@@ -23,8 +24,8 @@ export default function HorenView({ showToast, onActivityComplete }) {
   const allQuestions = useMemo(() => B2_HOREN_PARTS.flatMap(item => item.questions), []);
   const learningMode = mode === 'learn';
 
-  const stopAudio = () => { window.speechSynthesis?.cancel(); setIsPlaying(false); setActiveSegment(-1); };
-  useEffect(() => () => window.speechSynthesis?.cancel(), []);
+  const stopAudio = () => { stop(); setIsPlaying(false); setActiveSegment(-1); };
+  useEffect(() => () => stop(), []);
 
   const finish = (automatic = false) => {
     if (submitted) return;
@@ -53,25 +54,48 @@ export default function HorenView({ showToast, onActivityComplete }) {
   }, [submitted, learningMode]);
 
   const playPart = () => {
-    if (!('speechSynthesis' in window)) return showToast?.('Trình duyệt không hỗ trợ Speech Synthesis.', 'error');
     const used = plays[part.id] || 0;
     if (!learningMode && used >= part.maxPlays) return showToast?.('Bạn đã dùng hết số lượt nghe của Teil này.', 'warning');
-    window.speechSynthesis.cancel();
-    const germanVoices = window.speechSynthesis.getVoices().filter(voice => voice.lang?.startsWith('de'));
-    const speakerMap = new Map(); let speakerCursor = 0;
+    
+    stop();
     if (!learningMode) setPlays(current => ({ ...current, [part.id]: used + 1 }));
     setIsPlaying(true);
-    part.segments.forEach((segment, index) => {
-      if (!speakerMap.has(segment.speaker)) { speakerMap.set(segment.speaker, speakerCursor); speakerCursor += 1; }
-      const voiceIndex = speakerMap.get(segment.speaker);
-      const utterance = new SpeechSynthesisUtterance(segment.text);
-      utterance.lang = 'de-DE'; utterance.rate = learningMode ? speechRate : 0.96; utterance.pitch = 0.92 + (voiceIndex % 3) * 0.09;
-      if (germanVoices.length) utterance.voice = germanVoices[voiceIndex % germanVoices.length];
-      utterance.onstart = () => setActiveSegment(index);
-      if (index === part.segments.length - 1) utterance.onend = () => { setIsPlaying(false); setActiveSegment(-1); };
-      utterance.onerror = () => { setIsPlaying(false); setActiveSegment(-1); };
-      window.speechSynthesis.speak(utterance);
-    });
+    
+    let segmentIndex = 0;
+    
+    const playNextSegment = () => {
+      if (segmentIndex >= part.segments.length) {
+        setIsPlaying(false);
+        setActiveSegment(-1);
+        return;
+      }
+      
+      setActiveSegment(segmentIndex);
+      const segment = part.segments[segmentIndex];
+      segmentIndex++;
+      
+      const speakerMap = new Map();
+      let speakerCursor = 0;
+      part.segments.forEach(seg => {
+        if (!speakerMap.has(seg.speaker)) {
+          speakerMap.set(seg.speaker, speakerCursor);
+          speakerCursor += 1;
+        }
+      });
+      const voiceIndex = speakerMap.get(segment.speaker) || 0;
+      
+      speak(segment.text, {
+        rate: learningMode ? speechRate : 0.96,
+        pitch: 0.92 + (voiceIndex % 3) * 0.09,
+        onEnd: () => {
+          setTimeout(() => {
+            playNextSegment();
+          }, 450);
+        }
+      });
+    };
+    
+    playNextSegment();
   };
 
   const selectAnswer = (questionId, optionIndex) => {

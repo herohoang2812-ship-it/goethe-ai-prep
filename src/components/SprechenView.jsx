@@ -14,6 +14,7 @@ import TypingIndicator from './TypingIndicator';
 import AnimatedScore from './AnimatedScore';
 import { chatWithExaminer, gradeSpeaking } from '../services/aiService';
 import { recordAttempt } from '../utils/learningStore';
+import { speak, stop } from '../services/ttsService';
 
 export default function SprechenView({ showToast, onActivityComplete }) {
   const [selectedSpeakTopic, setSelectedSpeakTopic] = useState(SPRECHEN_TOPICS[0]);
@@ -35,34 +36,28 @@ export default function SprechenView({ showToast, onActivityComplete }) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [speakChat, isAiTyping]);
 
+  // Dừng phát âm thanh khi chuyển tab hoặc unmount component
+  useEffect(() => {
+    return () => {
+      stop();
+    };
+  }, []);
+
   // Handle Text-to-Speech (TTS)
   const speakText = (text) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel(); // Stop any currently speaking voice
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'de-DE'; // High German
-      
-      const voices = window.speechSynthesis.getVoices();
-      const deVoice = voices.find(voice => voice.lang.startsWith('de'));
-      if (deVoice) {
-        utterance.voice = deVoice;
-      }
-      window.speechSynthesis.speak(utterance);
-    }
+    speak(text);
   };
 
   // Speak the initial AI greeting when topic changes
   useEffect(() => {
-    if ('speechSynthesis' in window) {
-      setTimeout(() => {
-        const lastMsg = speakChat[speakChat.length - 1];
-        if (lastMsg && lastMsg.sender === 'ai' && lastMsg.id === 3) {
-          speakText(lastMsg.text);
-        } else if (speakChat.length === 3) {
-          speakText(speakChat[2].text);
-        }
-      }, 600);
-    }
+    setTimeout(() => {
+      const lastMsg = speakChat[speakChat.length - 1];
+      if (lastMsg && lastMsg.sender === 'ai' && lastMsg.id === 3) {
+        speakText(lastMsg.text);
+      } else if (speakChat.length === 3) {
+        speakText(speakChat[2].text);
+      }
+    }, 600);
   }, [selectedSpeakTopic]);
 
   // Timer for recording simulation

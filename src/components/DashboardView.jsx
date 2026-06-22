@@ -15,6 +15,7 @@ import {
   ClipboardCheck
 } from 'lucide-react';
 import { getDiagnosticResult } from '../utils/diagnosticEngine';
+import { loadPiper, checkPiperStatus, isPiperLoaded } from '../services/ttsService';
 
 export default function DashboardView({ setActiveTab, userStreak, userProfile, setUserProfile }) {
   const [stats, setStats] = useState({
@@ -32,11 +33,66 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
     specialty: userProfile?.specialty || 'pflege'
   });
 
+  // TTS configurations state
+  const [ttsProvider, setTtsProvider] = useState(() => localStorage.getItem('goethe_tts_provider') || 'google');
+  const [piperStatus, setPiperStatus] = useState('not_loaded');
+  const [piperProgress, setPiperProgress] = useState(0);
+  const [piperProgressMsg, setPiperProgressMsg] = useState('Chưa tải gói ngôn ngữ.');
+  const [showConfirmPopup, setShowConfirmPopup] = useState(false);
+
   useEffect(() => {
     const update = () => setDiagnostic(getDiagnosticResult());
     window.addEventListener('goethe-progress-updated', update);
     return () => window.removeEventListener('goethe-progress-updated', update);
   }, []);
+
+  useEffect(() => {
+    if (isPiperLoaded()) {
+      setPiperStatus('cached');
+    }
+  }, []);
+
+  const handleTtsProviderChange = (val) => {
+    setTtsProvider(val);
+    localStorage.setItem('goethe_tts_provider', val);
+    if (val === 'piper') {
+      checkPiperStatus((status, msg) => {
+        setPiperStatus(status);
+        if (status === 'ready' || status === 'cached') {
+          setPiperStatus('ready');
+        }
+      });
+    }
+  };
+
+  const handleStartDownloadPiper = () => {
+    setPiperStatus('downloading');
+    setPiperProgress(0);
+    setPiperProgressMsg('Đang bắt đầu tải...');
+    loadPiper(
+      (percent, msg) => {
+        setPiperProgress(percent);
+        setPiperProgressMsg(msg);
+      },
+      (status, msg) => {
+        setPiperStatus(status);
+        if (status === 'ready') {
+          setPiperStatus('ready');
+        }
+      }
+    );
+  };
+
+  const getPiperStatusText = () => {
+    switch (piperStatus) {
+      case 'not_loaded': return 'Chưa tải';
+      case 'cached': return 'Đã tải (Chưa kích hoạt)';
+      case 'downloading': return 'Đang tải về máy...';
+      case 'initializing': return 'Đang cài đặt...';
+      case 'ready': return 'Sẵn sàng (Offline)';
+      default: return 'Chưa tải';
+    }
+  };
 
   // Map specialty ID to display name in Vietnamese
   const getSpecialtyName = (id) => {
@@ -342,7 +398,7 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
                 </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '20px' }}>
+              <div className="form-group" style={{ marginBottom: '14px' }}>
                 <label className="form-label" htmlFor="profile-specialty">Chuyên ngành học tập</label>
                 <select 
                   id="profile-specialty"
@@ -360,6 +416,55 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
                 </select>
               </div>
 
+              <div className="form-group" style={{ marginBottom: '14px' }}>
+                <label className="form-label">Giọng đọc phát âm (TTS)</label>
+                <select 
+                  className="form-control"
+                  value={ttsProvider}
+                  onChange={(e) => handleTtsProviderChange(e.target.value)}
+                >
+                  <option value="google">Giọng chuẩn Google AI (Online - Khuyên dùng)</option>
+                  <option value="piper">Giọng offline Piper TTS (Tải về máy học viên)</option>
+                  <option value="system">Giọng hệ thống mặc định (Offline)</option>
+                </select>
+              </div>
+
+              {ttsProvider === 'piper' && (
+                <div className="inner-card" style={{ padding: '12px', marginBottom: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                  <div className="flex-between" style={{ marginBottom: '6px' }}>
+                    <span style={{ fontSize: '12.5px', fontWeight: '600' }}>Trạng thái Piper TTS:</span>
+                    <span className="badge badge-secondary" style={{ fontSize: '10.5px' }}>{getPiperStatusText()}</span>
+                  </div>
+                  
+                  {piperStatus === 'not_loaded' && (
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary btn-sm" 
+                      onClick={() => setShowConfirmPopup(true)}
+                      style={{ width: '100%', fontSize: '12px', padding: '6px' }}
+                    >
+                      Tải gói giọng nói (63MB)
+                    </button>
+                  )}
+
+                  {(piperStatus === 'downloading' || piperStatus === 'initializing') && (
+                    <div style={{ marginTop: '6px' }}>
+                      <div className="flex-between" style={{ fontSize: '10.5px', marginBottom: '4px' }}>
+                        <span className="text-muted" style={{ maxWidth: '80%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{piperProgressMsg}</span>
+                        <span>{piperProgress}%</span>
+                      </div>
+                      <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                        <div style={{ width: `${piperProgress}%`, height: '100%', background: 'var(--primary)', transition: 'width 0.15s ease' }}></div>
+                      </div>
+                    </div>
+                  )}
+
+                  {(piperStatus === 'ready' || piperStatus === 'cached') && (
+                    <p style={{ fontSize: '11.5px', color: 'var(--success)', margin: 0 }}>✓ Gói giọng nói đã cài đặt và chạy offline trên máy của bạn.</p>
+                  )}
+                </div>
+              )}
+
               <div className="flex-end gap-md" style={{ marginTop: '10px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)}>
                   Hủy
@@ -369,6 +474,66 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Piper Confirm Download Popup */}
+      {showConfirmPopup && (
+        <div 
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 110,
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+        >
+          <div 
+            className="glass-panel panel flex-col anim-fade-in-up"
+            style={{
+              width: '90%',
+              maxWidth: '380px',
+              border: '1px solid var(--border-color)',
+              padding: '20px',
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)'
+            }}
+          >
+            <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '12px', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ℹ️ Tải gói giọng nói offline
+            </h3>
+            <p style={{ fontSize: '12.5px', lineHeight: 1.6, color: 'var(--text-muted)', marginBottom: '18px' }}>
+              Ứng dụng chuẩn bị tải gói mô hình giọng nói Đức chất lượng cao **Piper (Thorsten de_DE - 63MB)** về trình duyệt của bạn.
+              <br /><br />
+              💡 **Bạn có thể hoàn toàn an tâm**:
+              <br />
+              • Gói này chỉ cần **tải 1 lần duy nhất**.
+              <br />
+              • Dữ liệu mô hình sẽ được **lưu trữ vĩnh viễn vào bộ nhớ cục bộ** máy của bạn (trình duyệt Cache/IndexedDB).
+              <br />
+              • Ở các lần sau, app sẽ **chạy offline hoàn toàn trên máy bạn** mà không cần tải lại, không tốn dung lượng internet.
+            </p>
+            <div className="flex-end gap-md">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowConfirmPopup(false)} style={{ fontSize: '12px', padding: '6px 12px' }}>
+                Hủy
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary btn-sm" 
+                onClick={() => {
+                  setShowConfirmPopup(false);
+                  handleStartDownloadPiper();
+                }}
+                style={{ fontSize: '12px', padding: '6px 12px' }}
+              >
+                Đồng ý tải về
+              </button>
+            </div>
           </div>
         </div>
       )}

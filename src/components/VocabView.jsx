@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { VOCAB_CATEGORIES, VOCAB_LIST } from '../data/vocabList';
 import { getSrsRecords, isDue, recordAttempt, reviewSrs } from '../utils/learningStore';
+import { speak } from '../services/ttsService';
 
 // Helper to render icon dynamically
 const CategoryIcon = ({ iconName, size = 18 }) => {
@@ -99,18 +100,7 @@ export default function VocabView({ showToast, onActivityComplete }) {
     if (e) {
       e.stopPropagation(); // Prevent card flipping when clicking pronunciation button
     }
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'de-DE';
-      
-      const voices = window.speechSynthesis.getVoices();
-      const deVoice = voices.find(voice => voice.lang.startsWith('de'));
-      if (deVoice) {
-        utterance.voice = deVoice;
-      }
-      window.speechSynthesis.speak(utterance);
-    }
+    speak(text);
   };
 
   const handleNext = (e) => {
