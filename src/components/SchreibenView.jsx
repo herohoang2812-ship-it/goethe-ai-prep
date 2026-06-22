@@ -48,7 +48,7 @@ export default function SchreibenView({ showToast, onActivityComplete, currentUs
 
   const handleSchreibenGrade = async () => {
     if (!currentUser) {
-      showToast('Tính năng chấm điểm Viết bằng AI yêu cầu đăng nhập tài khoản. Vui lòng đăng nhập hoặc đăng ký tài khoản miễn phí để tiếp tục!', 'warning');
+      showToast('Tính năng chấm bài nâng cao yêu cầu đăng nhập tài khoản. Vui lòng đăng nhập hoặc đăng ký tài khoản miễn phí để tiếp tục!', 'warning');
       onAuthClick();
       return;
     }
@@ -98,7 +98,7 @@ export default function SchreibenView({ showToast, onActivityComplete, currentUs
       showToast('Chấm bài hoàn tất!', 'success');
     } catch (err) {
       console.error(err);
-      showToast(err.message || 'Lỗi kết nối AI. Vui lòng thử lại sau!', 'error');
+      showToast(err.message || 'Dịch vụ chấm bài đang bận. Vui lòng thử lại sau!', 'error');
     } finally {
       setIsWritingGrading(false);
     }
@@ -124,7 +124,7 @@ export default function SchreibenView({ showToast, onActivityComplete, currentUs
     <div className="page-section">
       <div className="content-header">
         <div>
-          <h1 className="content-title">AI Schreiben Grader</h1>
+          <h1 className="content-title">Schreiben Coach</h1>
           <p className="content-subtitle">B2: Teil 1 Forumsbeitrag ~150 từ/50 phút · Teil 2 Nachricht ~100 từ/25 phút.</p>
         </div>
         <div className="badge badge-primary"><Clock size={14} /> Module 75 phút: {formatTime(timeLeft)}</div>
@@ -268,17 +268,17 @@ export default function SchreibenView({ showToast, onActivityComplete, currentUs
                     className="btn btn-primary" 
                     onClick={handleSchreibenGrade}
                     disabled={isWritingGrading}
-                    aria-label="Nộp bài và chấm AI"
+                    aria-label="Nộp bài và nhận xét"
                   >
                     {isWritingGrading ? (
                       <>
                         <RefreshCw className="spin-slow" size={16} />
-                        AI đang chấm điểm...
+                        Đang phân tích bài viết...
                       </>
                     ) : (
                       <>
                         <Sparkles size={16} />
-                        Nộp bài & Chấm AI
+                        Nộp bài & Nhận xét
                       </>
                     )}
                   </button>
@@ -294,9 +294,9 @@ export default function SchreibenView({ showToast, onActivityComplete, currentUs
                 <div>
                   <h3 className="section-title" style={{ marginBottom: '4px' }}>
                     <Award className="text-primary" size={22} />
-                    Kết quả chấm điểm AI
+                    Kết quả chấm bài
                   </h3>
-                  <p className="text-muted" style={{ fontSize: '13px' }}>Kết quả AI chỉ mang tính tham khảo, không thay thế giám khảo chính thức.</p>
+                  <p className="text-muted" style={{ fontSize: '13px' }}>Kết quả chấm tự động chỉ mang tính tham khảo, không thay thế giám khảo chính thức.</p>
                 </div>
                 <div className="score-display">
                   <div className="score-big">
@@ -338,7 +338,7 @@ export default function SchreibenView({ showToast, onActivityComplete, currentUs
               <div className="section-divider">
                 <h4 className="section-title" style={{ fontSize: '15px', color: 'var(--secondary)' }}>
                   <Sparkles size={16} />
-                  Phiên bản viết lại tối ưu từ AI (Band B2/C1):
+                  Bài viết tham khảo nâng cao (Band B2/C1):
                 </h4>
                 <div className="rewrite-block">
                   {writeResult.rewrite}

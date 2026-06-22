@@ -4,7 +4,7 @@ export const SPRECHEN_TOPICS = [
     level: 'B1',
     type: 'Teil 1 - Gemeinsam planen (Cùng lên kế hoạch)',
     title: 'Tổ chức chuyến dã ngoại cuối tuần cho các cụ già',
-    scenario: 'Một nhóm 5 cụ già trong viện dưỡng lão nơi bạn làm việc muốn đi dã ngoại vào cuối tuần này. Bạn và đồng nghiệp AI sẽ cùng thảo luận để lên kế hoạch chi tiết.',
+    scenario: 'Một nhóm 5 cụ già trong viện dưỡng lão nơi bạn làm việc muốn đi dã ngoại vào cuối tuần này. Bạn và đối tác luyện tập sẽ cùng thảo luận để lên kế hoạch chi tiết.',
     prompts: [
       'Nên đi bằng phương tiện gì (Bus, Taxi, đi bộ)?',
       'Chuẩn bị thức ăn và nước uống như thế nào?',
@@ -22,7 +22,7 @@ export const SPRECHEN_TOPICS = [
     level: 'B1',
     type: 'Teil 1 - Gemeinsam planen (Cùng lên kế hoạch)',
     title: 'Tổ chức tiệc sinh nhật bất ngờ cho cụ Schmidt',
-    scenario: 'Cụ Schmidt ở phòng số 12 sắp bước sang tuổi 80 vào tuần tới. Cụ không có người thân ở gần. Bạn và đồng nghiệp AI bàn bạc tổ chức một buổi tiệc sinh nhật bất ngờ tại phòng sinh hoạt chung.',
+    scenario: 'Cụ Schmidt ở phòng số 12 sắp bước sang tuổi 80 vào tuần tới. Cụ không có người thân ở gần. Bạn và đối tác luyện tập bàn bạc tổ chức một buổi tiệc sinh nhật bất ngờ tại phòng sinh hoạt chung.',
     prompts: [
       'Trang trí phòng sinh hoạt chung như thế nào?',
       'Mua hoặc tự làm bánh sinh nhật?',
@@ -76,7 +76,7 @@ export const SPRECHEN_TOPICS = [
     level: 'B2',
     type: 'Teil 2 - Thảo luận & Tranh luận (Debatte)',
     title: 'Nên cấm sử dụng điện thoại trong trường học không?',
-    scenario: 'Bạn và giám khảo AI cùng thảo luận sôi nổi về việc đưa ra lệnh cấm hoàn toàn điện thoại di động trong các trường phổ thông.',
+    scenario: 'Bạn và giám khảo mô phỏng cùng thảo luận sôi nổi về việc đưa ra lệnh cấm hoàn toàn điện thoại di động trong các trường phổ thông.',
     prompts: [
       'Lợi ích của việc cấm điện thoại (tập trung học tập, giảm bạo lực mạng học đường).',
       'Vai trò của điện thoại như công cụ tra cứu thông tin hữu ích trong bài học.',
@@ -94,7 +94,7 @@ export const SPRECHEN_TOPICS = [
     level: 'B1',
     type: 'Teil 1 - Gemeinsam planen (Cùng lên kế hoạch)',
     title: 'Lên kế hoạch dọn dẹp và trang trí lại văn phòng làm việc',
-    scenario: 'Văn phòng của bạn trông rất lộn xộn. Bạn và đồng nghiệp AI cùng lập kế hoạch dọn dẹp vệ sinh và trang trí lại không gian làm việc chung vào ngày thứ Bảy tới.',
+    scenario: 'Văn phòng của bạn trông rất lộn xộn. Bạn và đối tác luyện tập cùng lập kế hoạch dọn dẹp vệ sinh và trang trí lại không gian làm việc chung vào ngày thứ Bảy tới.',
     prompts: [
       'Thời gian bắt đầu dọn dẹp?',
       'Phân chia công việc (ai dọn bàn ghế, ai vứt tài liệu cũ)?',
@@ -130,7 +130,7 @@ export const SPRECHEN_TOPICS = [
     level: 'B1',
     type: 'Teil 1 - Gemeinsam planen (Cùng lên kế hoạch)',
     title: 'Lên kế hoạch chuẩn bị đón đoàn thanh tra y tế',
-    scenario: 'Tuần tới sẽ có đoàn thanh tra y tế của bang đến kiểm tra viện dưỡng lão. Bạn và điều dưỡng trưởng AI bàn bạc để chuẩn bị đón tiếp thật chu đáo.',
+    scenario: 'Tuần tới sẽ có đoàn thanh tra y tế của bang đến kiểm tra viện dưỡng lão. Bạn và điều dưỡng trưởng mô phỏng bàn bạc để chuẩn bị đón tiếp thật chu đáo.',
     prompts: [
       'Kiểm tra lại toàn bộ hồ sơ bệnh án và lịch phát thuốc.',
       'Dọn dẹp phòng bệnh nhân và khu vệ sinh chung.',

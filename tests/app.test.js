@@ -48,7 +48,7 @@ assert.equal(roadmap[0].focus, 'Hören');
 test('gói trả phí có hạn mức rõ ràng và giảm giá năm chính xác', () => {
   assert.equal(PRICING_PLANS.length, 4);
   assert.equal(PRICING_PLANS[0].monthlyPrice, 0);
-  assert.ok(PRICING_PLANS.slice(1).every(plan => plan.quota.includes('AI credits') && plan.quota.includes('Speech')));
+  assert.ok(PRICING_PLANS.slice(1).every(plan => plan.quota.includes('lượt nâng cao') && plan.quota.includes('phút phát âm')));
   const plus = PRICING_PLANS.find(plan => plan.id === 'plus');
   assert.equal(getPlanPrice(plus, 'monthly'), 49000);
   assert.equal(getPlanPrice(plus, 'annual'), 39000);

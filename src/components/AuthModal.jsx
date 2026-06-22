@@ -106,15 +106,19 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser,
             <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
                 <div className="flex-between" style={{ fontSize: '12.5px', marginBottom: '6px' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Lượt dùng AI (Credits):</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Lượt chấm nâng cao:</span>
                   <strong style={{ color: 'var(--text-main)' }}>
-                    {userProfile?.subscription?.planId === 'free' ? 'Học thử miễn phí' : `${userProfile?.quota?.aiCredits ?? 0} lượt`}
+                    {userProfile?.subscription?.planId === 'free' ? `Trải nghiệm miễn phí (${userProfile?.quota?.aiCredits ?? 0} lượt)` : `${userProfile?.quota?.aiCredits ?? 0} lượt`}
                   </strong>
                 </div>
-                {userProfile?.subscription?.planId && userProfile?.subscription?.planId !== 'free' && (
+                {userProfile?.subscription?.planId && (
                   <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
                     <div style={{ 
-                      width: `${Math.min(100, ((userProfile?.quota?.aiCredits ?? 0) / (userProfile?.subscription?.planId === 'plus' ? 20 : userProfile?.subscription?.planId === 'pro' ? 60 : 150)) * 100)}%`, 
+                      width: `${Math.min(100, ((userProfile?.quota?.aiCredits ?? 0) / (
+                        userProfile?.subscription?.planId === 'free' ? 3 :
+                        userProfile?.subscription?.planId === 'plus' ? 20 : 
+                        userProfile?.subscription?.planId === 'pro' ? 60 : 150
+                      )) * 100)}%`, 
                       height: '100%', 
                       background: 'var(--primary)' 
                     }}></div>
@@ -246,7 +250,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser,
             <Sparkles size={24} />
           </div>
           <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', marginBottom: '6px' }}>
-            {isReset ? 'Khôi phục mật khẩu' : isRegister ? 'Đăng ký học viên' : 'Đăng nhập Goethe AI-Prep'}
+            {isReset ? 'Khôi phục mật khẩu' : isRegister ? 'Đăng ký học viên' : 'Đăng nhập Goethe Prep'}
           </h2>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
             {isReset ? 'Nhập email để nhận đường dẫn thay đổi mật khẩu' : 'Đồng bộ tiến độ học tập trên mọi thiết bị'}

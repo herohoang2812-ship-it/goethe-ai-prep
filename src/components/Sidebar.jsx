@@ -22,8 +22,8 @@ export default function Sidebar({ activeTab, handleTabChange, sidebarOpen, setSi
   const navItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Trung tâm học tập' },
     { id: 'diagnostic', icon: ClipboardCheck, label: 'Diagnostic & Lộ trình', badge: 'B2' },
-    { id: 'schreiben', icon: PenTool, label: 'Luyện Viết (Schreiben)', badge: 'AI' },
-    { id: 'sprechen', icon: Mic, label: 'Luyện Nói (Sprechen)', badge: 'AI' },
+    { id: 'schreiben', icon: PenTool, label: 'Luyện Viết (Schreiben)', badge: 'PLUS' },
+    { id: 'sprechen', icon: Mic, label: 'Luyện Nói (Sprechen)', badge: 'PLUS' },
     { id: 'horen', icon: Headphones, label: 'Luyện Nghe (Hören)' },
     { id: 'lesen', icon: BookOpen, label: 'Luyện Đọc (Lesen)' },
     { id: 'vocab', icon: Compass, label: 'Từ vựng Chuyên ngành' },
@@ -47,7 +47,7 @@ export default function Sidebar({ activeTab, handleTabChange, sidebarOpen, setSi
           <div className="sidebar-logo-icon">
             <GraduationCap size={22} />
           </div>
-          <span className="sidebar-logo-text">Goethe AI-Prep</span>
+          <span className="sidebar-logo-text">Goethe Prep</span>
         </div>
         
         <nav className="sidebar-menu">

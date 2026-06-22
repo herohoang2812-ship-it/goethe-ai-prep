@@ -206,7 +206,7 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
     <div className="page-section">
       <div className="content-header">
         <div>
-          <h1 className="content-title">Trung tâm học tập AI</h1>
+          <h1 className="content-title">Trung tâm luyện thi</h1>
           <p className="content-subtitle">
             Lộ trình được may đo riêng cho kỳ thi Goethe {userProfile.level} {getSpecialtyName(userProfile.specialty)} của bạn.
           </p>
@@ -224,7 +224,7 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
           
           <div className="badge badge-success">
             <Sparkles size={12} />
-            AI Phân tích: Sẵn sàng
+            Phân tích: Sẵn sàng
           </div>
         </div>
       </div>
@@ -284,7 +284,7 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
               </div>
               <div className="roadmap-body">
                 <div className="roadmap-title">Module 2: Đề viết Schreiben Teil 1</div>
-                <div className="roadmap-desc">Luyện viết đề tài tương ứng cấp độ {userProfile.level} với chấm điểm AI thực tế.</div>
+                <div className="roadmap-desc">Luyện viết đề tài tương ứng cấp độ {userProfile.level} với phản hồi chi tiết theo tiêu chí.</div>
               </div>
               <div className="badge badge-primary">Đang làm</div>
             </div>
@@ -294,7 +294,7 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
                 <AlertCircle size={16} />
               </div>
               <div className="roadmap-body">
-                <div className="roadmap-title">Module 3: Đàm thoại Nói Sprechen với AI</div>
+                <div className="roadmap-title">Module 3: Mô phỏng phần thi Sprechen</div>
                 <div className="roadmap-desc">Luyện thuyết trình hoặc đàm thoại kế hoạch và nhận sửa lỗi trực tiếp.</div>
               </div>
               <div className="badge badge-secondary">Khóa</div>
@@ -308,7 +308,7 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
           <div className="glass-panel panel-lg flex-col anim-fade-in-up anim-delay-4" style={{ justifyContent: 'stretch', flex: 1 }}>
             <h3 className="section-title">
               <Sparkles className="text-primary" size={18} />
-              Gợi ý từ AI
+              Gợi ý học hôm nay
             </h3>
             <p className="text-muted" style={{ fontSize: '14px', lineHeight: 1.6, marginBottom: '20px' }}>
               Hệ thống phân tích khuyên bạn nên làm quen với các mẫu câu đặc trưng (Redemittel) của trình độ <strong style={{ color: 'var(--primary)' }}>{userProfile.level}</strong> chuyên ngành <strong style={{ color: 'var(--primary)' }}>{getSpecialtyName(userProfile.specialty)}</strong> để nâng cao band điểm nhanh nhất.
@@ -346,15 +346,19 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
                 
                 <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
                   <div className="flex-between" style={{ marginBottom: '6px', fontSize: '13px' }}>
-                    <span>Lượt dùng AI (Credits):</span>
+                    <span>Lượt chấm nâng cao:</span>
                     <strong style={{ color: 'var(--primary)' }}>
-                      {userProfile.subscription?.planId === 'free' ? 'Học thử miễn phí' : `${userProfile.quota?.aiCredits ?? 0} lượt`}
+                      {userProfile.subscription?.planId === 'free' ? `Trải nghiệm miễn phí (${userProfile.quota?.aiCredits ?? 0} lượt)` : `${userProfile.quota?.aiCredits ?? 0} lượt`}
                     </strong>
                   </div>
-                  {userProfile.subscription?.planId && userProfile.subscription?.planId !== 'free' && (
+                  {userProfile.subscription?.planId && (
                     <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
                       <div style={{ 
-                        width: `${Math.min(100, ((userProfile.quota?.aiCredits ?? 0) / (userProfile.subscription?.planId === 'plus' ? 20 : userProfile.subscription?.planId === 'pro' ? 60 : 150)) * 100)}%`, 
+                        width: `${Math.min(100, ((userProfile.quota?.aiCredits ?? 0) / (
+                          userProfile.subscription?.planId === 'free' ? 3 :
+                          userProfile.subscription?.planId === 'plus' ? 20 : 
+                          userProfile.subscription?.planId === 'pro' ? 60 : 150
+                        )) * 100)}%`, 
                         height: '100%', 
                         background: 'var(--primary)' 
                       }}></div>
@@ -523,7 +527,7 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
                   value={ttsProvider}
                   onChange={(e) => handleTtsProviderChange(e.target.value)}
                 >
-                  <option value="google">Giọng chuẩn Google AI (Online - Khuyên dùng)</option>
+                  <option value="google">Giọng chuẩn Google (Online - Khuyên dùng)</option>
                   <option value="piper">Giọng offline Piper TTS (Tải về máy học viên)</option>
                   <option value="system">Giọng hệ thống mặc định (Offline)</option>
                 </select>

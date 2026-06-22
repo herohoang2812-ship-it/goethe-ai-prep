@@ -12,15 +12,16 @@ service cloud.firestore {
       allow create: if isOwner(uid)
         && request.resource.data.uid == uid
         && request.resource.data.subscription.planId == 'free'
-        && request.resource.data.quota.aiCredits == 0
-        && request.resource.data.quota.speechMinutes == 0;
+        && request.resource.data.quota.aiCredits == 3
+        && request.resource.data.quota.speechMinutes == 10;
 
       allow update: if isOwner(uid)
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.subscription == resource.data.subscription
-        && request.resource.data.quota == resource.data.quota
+        && request.resource.data.quota.aiCredits <= resource.data.quota.aiCredits
+        && request.resource.data.quota.speechMinutes <= resource.data.quota.speechMinutes
         && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['name', 'level', 'specialty', 'profile']);
+          .hasOnly(['name', 'level', 'specialty', 'profile', 'quota']);
 
       allow delete: if false;
     }

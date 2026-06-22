@@ -16,7 +16,7 @@ const AI_PROXY_URL = import.meta.env.VITE_AI_PROXY_URL || '/api/ai';
  * @returns {object}
  */
 function cleanAndParseJSON(rawText) {
-  if (!rawText) throw new Error('Dữ liệu phản hồi từ AI trống.');
+  if (!rawText) throw new Error('Dữ liệu phản hồi từ dịch vụ chấm đang trống.');
 
   const firstBrace = rawText.indexOf('{');
   const lastBrace = rawText.lastIndexOf('}');
@@ -24,7 +24,7 @@ function cleanAndParseJSON(rawText) {
   if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
     console.error('[cleanAndParseJSON] Không tìm thấy JSON. Phản hồi thực tế từ AI:', rawText);
     const excerpt = rawText.trim().slice(0, 300);
-    throw new Error(`Không tìm thấy khối dữ liệu JSON trong phản hồi của AI. Nội dung nhận được: "${excerpt}${rawText.length > 300 ? '...' : ''}"`);
+    throw new Error(`Không tìm thấy dữ liệu chấm hợp lệ trong phản hồi. Nội dung nhận được: "${excerpt}${rawText.length > 300 ? '...' : ''}"`);
   }
 
   let jsonString = rawText.substring(firstBrace, lastBrace + 1);
@@ -59,7 +59,7 @@ function cleanAndParseJSON(rawText) {
     } catch (err2) {
       console.error('[cleanAndParseJSON] Thất bại hoàn toàn. Nội dung chuỗi JSON sau khi làm sạch:', jsonString);
       const excerpt = jsonString.trim().slice(0, 300);
-      throw new Error(`JSON phản hồi từ AI không hợp lệ: ${err2.message}. Nội dung nhận được: "${excerpt}${jsonString.length > 300 ? '...' : ''}"`);
+      throw new Error(`Dữ liệu chấm trả về không hợp lệ: ${err2.message}. Nội dung nhận được: "${excerpt}${jsonString.length > 300 ? '...' : ''}"`);
     }
   }
 }
@@ -85,7 +85,7 @@ async function callAI(messages, maxTokens = 1024) {
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`AI API Error ${response.status}: ${errText}`);
+    throw new Error(`Dịch vụ chấm lỗi ${response.status}: ${errText}`);
   }
 
   const data = await response.json();
@@ -156,7 +156,7 @@ Hãy chấm điểm bài viết này.`;
     );
 
     if (!rawResponse || rawResponse.trim() === '') {
-      throw new Error('Máy chủ AI (vilao.ai) trả về kết quả rỗng (0 output tokens). Vui lòng kiểm tra lại số dư hoặc trạng thái mô hình trên dashboard.');
+      throw new Error('Dịch vụ chấm bài chưa trả về kết quả. Vui lòng thử lại sau.');
     }
 
     const parsed = cleanAndParseJSON(rawResponse);
@@ -176,7 +176,7 @@ Hãy chấm điểm bài viết này.`;
     };
   } catch (err) {
     console.error('[aiService] gradeWriting error:', err);
-    throw new Error(`Không thể kết nối AI: ${err.message}`);
+    throw new Error(`Không thể kết nối dịch vụ chấm: ${err.message}`);
   }
 }
 
@@ -240,7 +240,7 @@ Hãy đánh giá phần nói này.`;
     );
 
     if (!rawResponse || rawResponse.trim() === '') {
-      throw new Error('Máy chủ AI (vilao.ai) trả về kết quả rỗng (0 output tokens) cho phần nói.');
+      throw new Error('Dịch vụ đánh giá bài nói chưa trả về kết quả.');
     }
 
     const parsed = cleanAndParseJSON(rawResponse);
@@ -256,7 +256,7 @@ Hãy đánh giá phần nói này.`;
     };
   } catch (err) {
     console.error('[aiService] gradeSpeaking error:', err);
-    throw new Error(`Không thể kết nối AI: ${err.message}`);
+    throw new Error(`Không thể kết nối dịch vụ chấm: ${err.message}`);
   }
 }
 
@@ -304,11 +304,11 @@ REGELN:
   try {
     const response = await callAI(messages, 200);
     if (!response || response.trim() === '') {
-      return 'Entschuldigung, der AI-Server hat eine leere Antwort gesendet. Bitte überprüfen Sie Ihr Vilao.ai-Guthaben.';
+      return 'Entschuldigung, der Bewertungsdienst hat keine Antwort gesendet. Bitte versuchen Sie es gleich noch einmal.';
     }
     return response.trim() || 'Könnten Sie das bitte noch einmal erklären?';
   } catch (err) {
     console.error('[aiService] chatWithExaminer error:', err);
-    return 'Entschuldigung, der AI-Server antwortet gerade nicht. Versuchen Sie es gleich noch einmal.';
+    return 'Entschuldigung, der Bewertungsdienst antwortet gerade nicht. Versuchen Sie es gleich noch einmal.';
   }
 }

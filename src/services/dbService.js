@@ -44,8 +44,8 @@ export async function syncUserProfile(uid, defaultData = {}) {
         endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // Mặc định 1 năm
       },
       quota: {
-        aiCredits: 0,
-        speechMinutes: 0
+        aiCredits: 3,
+        speechMinutes: 10
       }
     };
     await setDoc(userDocRef, initialProfile);
@@ -121,14 +121,12 @@ export async function deductAiCreditOnDb(uid) {
   if (!docSnap.exists()) return false;
   
   const data = docSnap.data();
-  // Nếu là gói miễn phí (free), cho phép dùng với hạn mức cục bộ
-  if (data.subscription?.planId === 'free') {
-    return true; 
-  }
-
   const currentCredits = data.quota?.aiCredits || 0;
   if (currentCredits <= 0) {
-    throw new Error('Bạn đã sử dụng hết lượt chấm điểm hoặc hội thoại AI của gói cước tháng này.');
+    if (data.subscription?.planId === 'free') {
+      throw new Error('Bạn đã sử dụng hết lượt trải nghiệm chấm bài nâng cao miễn phí. Vui lòng nâng cấp gói cước để tiếp tục!');
+    }
+    throw new Error('Bạn đã sử dụng hết lượt chấm bài hoặc hội thoại nâng cao của gói cước tháng này.');
   }
 
   await updateDoc(userDocRef, {
@@ -149,13 +147,12 @@ export async function deductSpeechMinutesOnDb(uid, minutesUsed) {
   if (!docSnap.exists()) return false;
 
   const data = docSnap.data();
-  if (data.subscription?.planId === 'free') {
-    return true; 
-  }
-
   const currentMinutes = data.quota?.speechMinutes || 0;
   if (currentMinutes <= 0) {
-    throw new Error('Bạn đã sử dụng hết số phút luyện phát âm nói Azure AI Speech của gói cước tháng này.');
+    if (data.subscription?.planId === 'free') {
+      throw new Error('Bạn đã sử dụng hết số phút luyện phát âm trải nghiệm miễn phí. Vui lòng nâng cấp gói cước để tiếp tục!');
+    }
+    throw new Error('Bạn đã sử dụng hết số phút luyện phát âm của gói cước tháng này.');
   }
 
   const nextMinutes = Math.max(0, currentMinutes - minutesUsed);

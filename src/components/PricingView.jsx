@@ -26,7 +26,7 @@ export default function PricingView({ showToast }) {
 
   return <div className="page-section pricing-page">
     <header className="pricing-header">
-      <div><span className="badge badge-primary"><Sparkles size={13}/> Premium learning</span><h1 className="content-title">Chọn gói phù hợp với nhịp học</h1><p className="content-subtitle">Logic học cốt lõi vẫn miễn phí. Tài khoản trả phí mở chấm AI và Microsoft Azure AI Speech theo hạn mức rõ ràng.</p></div>
+      <div><span className="badge badge-primary"><Sparkles size={13}/> Premium learning</span><h1 className="content-title">Chọn gói phù hợp với nhịp học</h1><p className="content-subtitle">Nội dung học cốt lõi vẫn miễn phí. Tài khoản trả phí mở chấm bài nâng cao và luyện phát âm theo hạn mức rõ ràng.</p></div>
       <div className="billing-switch" role="tablist" aria-label="Chu kỳ thanh toán"><button className={billing === 'monthly' ? 'active' : ''} onClick={() => setBilling('monthly')}>Theo tháng</button><button className={billing === 'annual' ? 'active' : ''} onClick={() => setBilling('annual')}>Theo năm <span>Tiết kiệm {annualSaving}%</span></button></div>
     </header>
 
@@ -47,7 +47,7 @@ export default function PricingView({ showToast }) {
       </article>;
     })}</div>
 
-    <section className="pricing-transparency"><ShieldCheck size={22}/><div><h3>Minh bạch về tính phí</h3><p>AI credits dùng cho lượt chấm bài hoặc phản hồi hội thoại. Phút Speech dùng cho nhận dạng/phân tích giọng nói Azure. Hết hạn mức, app quay về chấm logic miễn phí và không tự động mua thêm.</p></div></section>
+    <section className="pricing-transparency"><ShieldCheck size={22}/><div><h3>Minh bạch về tính phí</h3><p>Lượt nâng cao dùng cho chấm bài hoặc phản hồi hội thoại. Phút phát âm dùng cho nhận dạng và phân tích giọng nói. Hết hạn mức, app quay về chế độ cơ bản và không tự động mua thêm.</p></div></section>
 
     {selectedPlan && <div className="modal-overlay pricing-modal-overlay" onClick={() => setSelectedPlan(null)}><div className="glass-panel panel pricing-checkout" role="dialog" aria-modal="true" aria-labelledby="checkout-title" onClick={event => event.stopPropagation()}>
       <button className="pricing-modal-close" onClick={() => setSelectedPlan(null)} aria-label="Đóng"><X size={18}/></button>

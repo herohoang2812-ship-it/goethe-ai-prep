@@ -103,7 +103,7 @@ export default function SprechenView({ showToast, onActivityComplete, currentUse
   // Speech-to-Text (STT) initialization
   const startSpeechRecognition = () => {
     if (!currentUser) {
-      showToast('Hội thoại với giám khảo AI là tính năng Premium. Vui lòng đăng nhập hoặc đăng ký tài khoản miễn phí để trải nghiệm!', 'warning');
+      showToast('Hội thoại với giám khảo mô phỏng là tính năng Premium. Vui lòng đăng nhập hoặc đăng ký tài khoản miễn phí để trải nghiệm!', 'warning');
       onAuthClick();
       return;
     }
@@ -190,7 +190,7 @@ export default function SprechenView({ showToast, onActivityComplete, currentUse
       speakText(aiText);
     } catch (err) {
       console.error(err);
-      showToast(err.message || 'Lỗi khi tải phản hồi từ giám khảo AI.', 'warning');
+      showToast(err.message || 'Lỗi khi tải phản hồi từ giám khảo mô phỏng.', 'warning');
     } finally {
       setIsAiTyping(false);
     }
@@ -198,7 +198,7 @@ export default function SprechenView({ showToast, onActivityComplete, currentUse
 
   const handleSpeakEvaluation = async () => {
     if (!currentUser) {
-      showToast('Tính năng chấm điểm Nói bằng AI yêu cầu đăng nhập tài khoản. Vui lòng đăng nhập hoặc đăng ký tài khoản miễn phí để tiếp tục!', 'warning');
+      showToast('Tính năng chấm bài Nói nâng cao yêu cầu đăng nhập tài khoản. Vui lòng đăng nhập hoặc đăng ký tài khoản miễn phí để tiếp tục!', 'warning');
       onAuthClick();
       return;
     }
@@ -241,7 +241,7 @@ export default function SprechenView({ showToast, onActivityComplete, currentUse
       }
     } catch (err) {
       console.error(err);
-      showToast(err.message || 'Lỗi kết nối AI. Vui lòng thử lại sau!', 'error');
+      showToast(err.message || 'Dịch vụ đánh giá đang bận. Vui lòng thử lại sau!', 'error');
     } finally {
       setIsSpeakGrading(false);
     }
@@ -251,8 +251,8 @@ export default function SprechenView({ showToast, onActivityComplete, currentUse
     <div className="page-section">
       <div className="content-header">
         <div>
-          <h1 className="content-title">AI Sprechen Partner</h1>
-          <p className="content-subtitle">Hội thoại tương tác giọng nói với giám khảo ảo AI cho phần thi Nói.</p>
+          <h1 className="content-title">Sprechen Trainer</h1>
+          <p className="content-subtitle">Luyện hội thoại và mô phỏng phản hồi trong phần thi Nói.</p>
         </div>
       </div>
 
@@ -319,7 +319,7 @@ export default function SprechenView({ showToast, onActivityComplete, currentUse
                 >
                   <div className="flex-between" style={{ marginBottom: '4px', alignItems: 'center' }}>
                     <div className={`chat-sender ${msg.sender === 'ai' ? 'chat-sender-ai' : 'chat-sender-user'}`}>
-                      {msg.sender === 'ai' ? 'GIÁM KHẢO AI' : 'BẠN (HỌC VIÊN)'}
+                      {msg.sender === 'ai' ? 'GIÁM KHẢO MÔ PHỎNG' : 'BẠN (HỌC VIÊN)'}
                     </div>
                     {msg.sender === 'ai' && (
                       <button 
