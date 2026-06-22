@@ -137,6 +137,23 @@ export default function App() {
     };
   }, [showToast]);
 
+  // Bắt các tham số thanh toán từ URL (payment=success hoặc payment=cancel)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment');
+    if (paymentStatus) {
+      if (paymentStatus === 'success') {
+        showToast('Chúc mừng! Bạn đã nâng cấp tài khoản thành công. Hạn mức mới đã được kích hoạt!', 'success');
+        localStorage.removeItem('goethe_pending_subscription');
+      } else if (paymentStatus === 'cancel') {
+        showToast('Giao dịch thanh toán đã bị hủy bỏ hoặc thất bại.', 'warning');
+      }
+      // Dọn dẹp tham số query trên URL mà không load lại trang
+      const newUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, document.title, newUrl);
+    }
+  }, [showToast]);
+
   const triggerStudyActivity = useCallback(() => {
     const now = new Date();
     const key = (date) => [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
@@ -392,7 +409,14 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'pricing' && <PricingView showToast={showToast} />}
+        {activeTab === 'pricing' && (
+          <PricingView 
+            showToast={showToast} 
+            currentUser={currentUser}
+            userProfile={userProfile}
+            onAuthClick={() => setIsAuthModalOpen(true)}
+          />
+        )}
 
         {activeTab === 'progress' && <ProgressView />}
       </main>
