@@ -101,6 +101,21 @@ export function reviewSrs(cardId, rating) {
 
 export function isDue(record) { return !record?.due || new Date(record.due) <= new Date(); }
 
+export function getBestMockExamScore() {
+  try {
+    const savedBestRaw = localStorage.getItem('goethe_best_mock_scores');
+    if (!savedBestRaw) return 0;
+    const best = JSON.parse(savedBestRaw);
+    const lesen = best.lesen || 0;
+    const hoeren = best.hoeren || 0;
+    const schreiben = best.schreiben || 0;
+    const sprechen = best.sprechen || 0;
+    return Math.round((lesen + hoeren + schreiben + sprechen) / 4);
+  } catch {
+    return 0;
+  }
+}
+
 export function calculateLeaderboardScores() {
   const attempts = readStore(KEYS.attempts, []);
   const skills = { Lesen: [], Hören: [], Schreiben: [], Sprechen: [] };
@@ -117,6 +132,7 @@ export function calculateLeaderboardScores() {
     lesen: getAvg(skills.Lesen),
     hoeren: getAvg(skills.Hören),
     schreiben: getAvg(skills.Schreiben),
-    sprechen: getAvg(skills.Sprechen)
+    sprechen: getAvg(skills.Sprechen),
+    examScore: getBestMockExamScore()
   };
 }

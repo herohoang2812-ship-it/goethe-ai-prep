@@ -12,6 +12,7 @@ import {
   Languages,
   BarChart3,
   ClipboardCheck,
+  ClipboardList,
   Crown,
   Trophy,
   LogIn,
@@ -23,6 +24,7 @@ export default function Sidebar({ activeTab, handleTabChange, sidebarOpen, setSi
   const navItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Trung tâm học tập' },
     { id: 'diagnostic', icon: ClipboardCheck, label: 'Diagnostic & Lộ trình', badge: 'B2' },
+    { id: 'exam', icon: ClipboardList, label: 'Thi thử (Mock Exam)', badge: 'B1' },
     { id: 'leaderboard', icon: Trophy, label: 'Bảng xếp hạng', badge: 'MỚI' },
     { id: 'schreiben', icon: PenTool, label: 'Luyện Viết (Schreiben)', badge: 'PLUS' },
     { id: 'sprechen', icon: Mic, label: 'Luyện Nói (Sprechen)', badge: 'PLUS' },

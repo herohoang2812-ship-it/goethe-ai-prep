@@ -4,6 +4,7 @@ import { collection, getDocs, query, limit } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
 const skillsList = [
+  { id: 'examScore', label: 'Thi thử (Mock Exam)', icon: Trophy },
   { id: 'lesen', label: 'Lesen (Đọc)', icon: BookOpen },
   { id: 'hoeren', label: 'Hören (Nghe)', icon: Headphones },
   { id: 'schreiben', label: 'Schreiben (Viết)', icon: PenTool },
@@ -12,16 +13,16 @@ const skillsList = [
 
 // Mock data to enrich leaderboard if database is empty/has few users
 const MOCK_LEADERBOARD = [
-  { uid: 'mock1', name: 'Lê Minh Đức', avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100', lesen: 92, hoeren: 88, schreiben: 85, sprechen: 90 },
-  { uid: 'mock2', name: 'Trần Thị Lan', avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100', lesen: 88, hoeren: 95, schreiben: 82, sprechen: 85 },
-  { uid: 'mock3', name: 'Nguyễn Hoàng Nam', avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100', lesen: 85, hoeren: 82, schreiben: 90, sprechen: 88 },
-  { uid: 'mock4', name: 'Phạm Hồng Nhung', avatarUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=100', lesen: 80, hoeren: 85, schreiben: 88, sprechen: 82 },
-  { uid: 'mock5', name: 'Vũ Quốc Khánh', avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=100', lesen: 78, hoeren: 80, schreiben: 75, sprechen: 88 },
-  { uid: 'mock6', name: 'Hoàng Ngọc Mai', avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=100', lesen: 75, hoeren: 78, schreiben: 80, sprechen: 78 }
+  { uid: 'mock1', name: 'Lê Minh Đức', avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100', lesen: 92, hoeren: 88, schreiben: 85, sprechen: 90, examScore: 89 },
+  { uid: 'mock2', name: 'Trần Thị Lan', avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100', lesen: 88, hoeren: 95, schreiben: 82, sprechen: 85, examScore: 88 },
+  { uid: 'mock3', name: 'Nguyễn Hoàng Nam', avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100', lesen: 85, hoeren: 82, schreiben: 90, sprechen: 88, examScore: 86 },
+  { uid: 'mock4', name: 'Phạm Hồng Nhung', avatarUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=100', lesen: 80, hoeren: 85, schreiben: 88, sprechen: 82, examScore: 84 },
+  { uid: 'mock5', name: 'Vũ Quốc Khánh', avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=100', lesen: 78, hoeren: 80, schreiben: 75, sprechen: 88, examScore: 80 },
+  { uid: 'mock6', name: 'Hoàng Ngọc Mai', avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=100', lesen: 75, hoeren: 78, schreiben: 80, sprechen: 78, examScore: 78 }
 ];
 
 export default function LeaderboardView({ currentUser, userProfile }) {
-  const [activeSkill, setActiveSkill] = useState('lesen');
+  const [activeSkill, setActiveSkill] = useState('examScore');
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -176,14 +177,16 @@ export default function LeaderboardView({ currentUser, userProfile }) {
                 </div>
               </div>
               
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginTop: '4px', borderTop: '1px solid var(--border-color)', paddingTop: '10px', textAlign: 'center' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', marginTop: '4px', borderTop: '1px solid var(--border-color)', paddingTop: '10px', textAlign: 'center' }}>
                 {skillsList.map(s => {
                   const myScores = leaderboardData.find(u => u.uid === currentUser.uid) || {};
                   const scoreVal = myScores[s.id] ?? 0;
                   return (
                     <div key={s.id}>
-                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{s.id}</div>
-                      <div style={{ fontSize: '13.5px', fontWeight: '700', color: s.id === activeSkill ? 'var(--primary)' : 'var(--text-main)' }}>{scoreVal}</div>
+                      <div style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                        {s.id === 'examScore' ? 'Mock' : s.id}
+                      </div>
+                      <div style={{ fontSize: '13px', fontWeight: '700', color: s.id === activeSkill ? 'var(--primary)' : 'var(--text-main)' }}>{scoreVal}</div>
                     </div>
                   );
                 })}
@@ -212,7 +215,9 @@ export default function LeaderboardView({ currentUser, userProfile }) {
                 <div style={{ display: 'flex', alignItems: 'center', padding: '6px 12px', borderBottom: '1px solid var(--border-color)', fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   <span style={{ width: '40px', textAlign: 'center' }}>Hạng</span>
                   <span style={{ flex: 1, paddingLeft: '12px' }}>Học viên</span>
-                  <span style={{ width: '100px', textAlign: 'right' }}>Điểm trung bình</span>
+                  <span style={{ width: '100px', textAlign: 'right' }}>
+                    {activeSkill === 'examScore' ? 'Điểm thi thử' : 'Điểm trung bình'}
+                  </span>
                 </div>
 
                 {/* Standings List */}

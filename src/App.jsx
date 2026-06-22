@@ -15,6 +15,7 @@ import DiagnosticView from './components/DiagnosticView';
 import PricingView from './components/PricingView';
 import AuthModal from './components/AuthModal';
 import LeaderboardView from './components/LeaderboardView';
+import ExamView from './components/ExamView';
 
 import { auth } from './services/firebase';
 import { onAuthStateChangedListener } from './services/authService';
@@ -374,6 +375,15 @@ export default function App() {
         )}
 
         {activeTab === 'diagnostic' && <DiagnosticView showToast={showToast} onActivityComplete={triggerStudyActivity} setActiveTab={handleTabChange} />}
+
+        {activeTab === 'exam' && (
+          <ExamView 
+            showToast={showToast} 
+            onActivityComplete={triggerStudyActivity} 
+            currentUser={currentUser}
+            onAuthClick={() => setIsAuthModalOpen(true)}
+          />
+        )}
 
         {activeTab === 'leaderboard' && (
           <LeaderboardView 
