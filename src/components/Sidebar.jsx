@@ -13,6 +13,7 @@ import {
   BarChart3,
   ClipboardCheck,
   Crown,
+  Trophy,
   LogIn,
   LogOut
 } from 'lucide-react';
@@ -22,6 +23,7 @@ export default function Sidebar({ activeTab, handleTabChange, sidebarOpen, setSi
   const navItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Trung tâm học tập' },
     { id: 'diagnostic', icon: ClipboardCheck, label: 'Diagnostic & Lộ trình', badge: 'B2' },
+    { id: 'leaderboard', icon: Trophy, label: 'Bảng xếp hạng', badge: 'MỚI' },
     { id: 'schreiben', icon: PenTool, label: 'Luyện Viết (Schreiben)', badge: 'PLUS' },
     { id: 'sprechen', icon: Mic, label: 'Luyện Nói (Sprechen)', badge: 'PLUS' },
     { id: 'horen', icon: Headphones, label: 'Luyện Nghe (Hören)' },

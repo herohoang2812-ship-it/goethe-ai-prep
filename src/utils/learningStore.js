@@ -100,3 +100,23 @@ export function reviewSrs(cardId, rating) {
 }
 
 export function isDue(record) { return !record?.due || new Date(record.due) <= new Date(); }
+
+export function calculateLeaderboardScores() {
+  const attempts = readStore(KEYS.attempts, []);
+  const skills = { Lesen: [], Hören: [], Schreiben: [], Sprechen: [] };
+  
+  for (const att of attempts) {
+    if (skills[att.module] !== undefined && typeof att.score === 'number') {
+      skills[att.module].push(att.score);
+    }
+  }
+  
+  const getAvg = (arr) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+  
+  return {
+    lesen: getAvg(skills.Lesen),
+    hoeren: getAvg(skills.Hören),
+    schreiben: getAvg(skills.Schreiben),
+    sprechen: getAvg(skills.Sprechen)
+  };
+}

@@ -4,6 +4,7 @@
 
 import { db } from './firebase';
 import { doc, getDoc, setDoc, updateDoc, increment, onSnapshot } from 'firebase/firestore';
+import { calculateLeaderboardScores } from '../utils/learningStore';
 
 /**
  * Đồng bộ thông tin hồ sơ người dùng từ Firestore.
@@ -18,12 +19,17 @@ export async function syncUserProfile(uid, defaultData = {}) {
 
   if (docSnap.exists()) {
     const data = docSnap.data();
-    // Đảm bảo trường phẳng cũng tồn tại để tương thích ngược với code cũ
+    // Update avatarUrl if it has changed
+    if (defaultData.avatarUrl && data.avatarUrl !== defaultData.avatarUrl) {
+      await updateDoc(userDocRef, { avatarUrl: defaultData.avatarUrl });
+      data.avatarUrl = defaultData.avatarUrl;
+    }
     return {
       ...data,
       name: data.name || defaultData.name || 'Học viên Goethe',
       level: data.level || data.profile?.level || defaultData.level || 'B1',
-      specialty: data.specialty || data.profile?.specialty || defaultData.specialty || 'pflege'
+      specialty: data.specialty || data.profile?.specialty || defaultData.specialty || 'pflege',
+      avatarUrl: data.avatarUrl || defaultData.avatarUrl || null
     };
   } else {
     // Tạo mới tài khoản học viên trên Cloud dựa trên dữ liệu hiện tại
@@ -32,6 +38,7 @@ export async function syncUserProfile(uid, defaultData = {}) {
       name: defaultData.name || 'Học viên Goethe',
       level: defaultData.level || 'B1',
       specialty: defaultData.specialty || 'pflege',
+      avatarUrl: defaultData.avatarUrl || null,
       profile: {
         level: defaultData.level || 'B1',
         specialty: defaultData.specialty || 'pflege'
@@ -180,4 +187,26 @@ export function subscribeToUserProfile(uid, callback) {
       });
     }
   });
+}
+
+/**
+ * Đồng bộ điểm số của học viên lên bảng xếp hạng công khai.
+ * @param {string} uid
+ * @param {string} name
+ * @param {string} avatarUrl
+ */
+export async function syncUserLeaderboard(uid, name, avatarUrl) {
+  try {
+    const scores = calculateLeaderboardScores();
+    const leaderDocRef = doc(db, 'leaderboard', uid);
+    await setDoc(leaderDocRef, {
+      uid,
+      name: name || 'Học viên Goethe',
+      avatarUrl: avatarUrl || null,
+      ...scores,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (err) {
+    console.error('[dbService] syncUserLeaderboard error:', err);
+  }
 }

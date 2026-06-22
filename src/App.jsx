@@ -14,10 +14,11 @@ import ProgressView from './components/ProgressView';
 import DiagnosticView from './components/DiagnosticView';
 import PricingView from './components/PricingView';
 import AuthModal from './components/AuthModal';
+import LeaderboardView from './components/LeaderboardView';
 
 import { auth } from './services/firebase';
 import { onAuthStateChangedListener } from './services/authService';
-import { syncUserProfile, syncUserProgress, saveUserProgressOnDb, subscribeToUserProfile } from './services/dbService';
+import { syncUserProfile, syncUserProgress, saveUserProgressOnDb, subscribeToUserProfile, syncUserLeaderboard } from './services/dbService';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -74,11 +75,15 @@ export default function App() {
             level: 'B1',
             specialty: 'pflege'
           };
+          localProfile.avatarUrl = user.photoURL || null;
           
           // Đồng bộ thông tin hồ sơ ban đầu
           const cloudProfile = await syncUserProfile(user.uid, localProfile);
           setUserProfile(cloudProfile);
           localStorage.setItem('goethe_user_profile', JSON.stringify(cloudProfile));
+
+          // Đồng bộ bảng xếp hạng lúc đăng nhập
+          await syncUserLeaderboard(user.uid, cloudProfile.name, cloudProfile.avatarUrl);
 
           // Đăng ký lắng nghe thay đổi thời gian thực hồ sơ trên Cloud
           unsubscribeProfile = subscribeToUserProfile(user.uid, (updatedProfile) => {
@@ -135,30 +140,47 @@ export default function App() {
     const now = new Date();
     const key = (date) => [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
     const today = key(now);
-    const last = localStorage.getItem('goethe_last_study_date');
-    if (last === today) return;
-    const yesterday = new Date(now);
-    yesterday.setDate(now.getDate() - 1);
-    const next = last === key(yesterday) ? (Number(localStorage.getItem('goethe_user_streak')) || 0) + 1 : 1;
-    localStorage.setItem('goethe_user_streak', String(next));
-    localStorage.setItem('goethe_last_study_date', today);
-    setStreak(next);
 
-    // Đồng bộ lên Cloud nếu đã đăng nhập
+    // Đồng bộ lên Cloud & Bảng xếp hạng nếu đã đăng nhập (chạy mỗi lần hoàn thành bài học)
     if (auth.currentUser) {
       const progressData = {
-        streak: next,
         completedLessons: JSON.parse(localStorage.getItem('goethe_completed_lessons')) || { lesen: [], horen: [] },
         vocabSrs: JSON.parse(localStorage.getItem('goethe_vocab_srs')) || { learnedWordsCount: 0, lastSrsReview: null },
         diagnostic: JSON.parse(localStorage.getItem('goethe_diagnostic_result')) || null
       };
+      
+      const last = localStorage.getItem('goethe_last_study_date');
+      if (last !== today) {
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const next = last === key(yesterday) ? (Number(localStorage.getItem('goethe_user_streak')) || 0) + 1 : 1;
+        localStorage.setItem('goethe_user_streak', String(next));
+        localStorage.setItem('goethe_last_study_date', today);
+        setStreak(next);
+        progressData.streak = next;
+        showToast('Tuyệt vời! Chuỗi ngày học tập của bạn đã tăng lên!', 'success');
+      }
+      
       saveUserProgressOnDb(auth.currentUser.uid, progressData).catch(err => {
         console.error('[App] Lỗi đồng bộ tiến độ lên Firestore:', err);
       });
+      
+      // Đồng bộ điểm lên bảng xếp hạng
+      syncUserLeaderboard(auth.currentUser.uid, userProfile?.name, userProfile?.avatarUrl);
+    } else {
+      // Trường hợp khách offline
+      const last = localStorage.getItem('goethe_last_study_date');
+      if (last !== today) {
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const next = last === key(yesterday) ? (Number(localStorage.getItem('goethe_user_streak')) || 0) + 1 : 1;
+        localStorage.setItem('goethe_user_streak', String(next));
+        localStorage.setItem('goethe_last_study_date', today);
+        setStreak(next);
+        showToast('Tuyệt vời! Chuỗi ngày học tập của bạn đã tăng lên!', 'success');
+      }
     }
-
-    showToast('Tuyệt vời! Chuỗi ngày học tập của bạn đã tăng lên!', 'success');
-  }, [showToast]);
+  }, [showToast, userProfile]);
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
@@ -352,6 +374,13 @@ export default function App() {
         )}
 
         {activeTab === 'diagnostic' && <DiagnosticView showToast={showToast} onActivityComplete={triggerStudyActivity} setActiveTab={handleTabChange} />}
+
+        {activeTab === 'leaderboard' && (
+          <LeaderboardView 
+            currentUser={currentUser}
+            userProfile={userProfile}
+          />
+        )}
 
         {activeTab === 'pricing' && <PricingView showToast={showToast} />}
 
