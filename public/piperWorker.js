@@ -1,35 +1,30 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Piper TTS Web Worker — Chạy mô hình tiếng Đức cục bộ bằng WebAssembly
+// Piper TTS Web Worker — Tải và chạy mô hình tiếng Đức cục bộ từ máy chủ nội bộ
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CACHE_NAME = 'goethe-piper-tts-cache-v1';
-const BASE_CDN = 'https://huggingface.co/csukuangfj/sherpa-onnx-tts-de-thorsten/resolve/main';
+const CACHE_NAME = 'goethe-piper-tts-local-cache-v1';
 
 const FILES = {
-  wasmJs: `${BASE_CDN}/sherpa-onnx-tts-worker.js`,
-  wasmWasm: `${BASE_CDN}/sherpa-onnx-tts.wasm`,
-  espeakData: `${BASE_CDN}/espeak-ng-data.tar`,
-  model: `${BASE_CDN}/de_DE-thorsten-medium.onnx`,
-  tokens: `${BASE_CDN}/tokens.txt`
+  wasmJs: '/piper/sherpa-onnx-wasm-main-tts.js',
+  ttsJs: '/piper/sherpa-onnx-tts.js',
+  wasmWasm: '/piper/sherpa-onnx-wasm-main-tts.wasm',
+  wasmData: '/piper/sherpa-onnx-wasm-main-tts.data'
 };
 
 let ttsInstance = null;
-let Module = null;
 
-// Hàm tải tệp tin có báo cáo tiến độ và lưu vào Cache Storage
-async function fetchWithProgress(url, fileKey, onProgress) {
-  const cache = await caches.open(CACHE_NAME);
+// Hàm tải tệp có báo cáo tiến độ và lưu vào Cache Storage
+async function fetchWithProgress(url, fileKey, onProgress, cache) {
   const cachedResponse = await cache.match(url);
   
   if (cachedResponse) {
     console.log(`[Piper Worker] Đọc từ cache: ${fileKey}`);
-    const blob = await cachedResponse.blob();
-    return await blob.arrayBuffer();
+    return await cachedResponse.blob();
   }
 
-  console.log(`[Piper Worker] Bắt đầu tải mới: ${fileKey}`);
+  console.log(`[Piper Worker] Tải mới: ${fileKey} từ ${url}`);
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`Không thể tải tệp: ${url} (Status: ${response.status})`);
+  if (!response.ok) throw new Error(`Không thể tải tệp ${fileKey}: ${response.statusText}`);
 
   const contentLength = response.headers.get('content-length');
   const total = contentLength ? parseInt(contentLength, 10) : 0;
@@ -55,28 +50,32 @@ async function fetchWithProgress(url, fileKey, onProgress) {
     position += chunk.length;
   }
 
-  // Lưu response vào cache để dùng offline lần sau
+  const blob = new Blob([allChunks.buffer], { type: response.headers.get('content-type') || 'application/octet-stream' });
+  
+  // Lưu vào Cache
   const headers = new Headers({ 'Content-Length': String(loaded) });
-  const responseToCache = new Response(allChunks.buffer, { headers });
+  const responseToCache = new Response(blob, { headers });
   await cache.put(url, responseToCache);
 
-  return allChunks.buffer;
+  return blob;
 }
 
-// Khởi động tải tất cả tài nguyên cần thiết cho Piper
+// Khởi chạy tải tất cả tài nguyên từ server nội bộ
 async function loadResources() {
   try {
     self.postMessage({ type: 'status', status: 'downloading', message: 'Bắt đầu tải gói giọng nói...' });
 
+    // Tổng dung lượng dự kiến: ~106MB
     const totalSizes = {
-      model: 63100000,     // ~63MB
-      espeakData: 2300000, // ~2.3MB
-      tokens: 35000,       // ~35KB
-      wasmWasm: 4200000,   // ~4.2MB
-      wasmJs: 80000        // ~80KB
+      wasmJs: 80000,       // ~80KB
+      ttsJs: 50000,        // ~50KB
+      wasmWasm: 11590000,  // ~11.5MB
+      wasmData: 94700000   // ~94.7MB
     };
 
     let loadedSizes = {};
+    const cache = await caches.open(CACHE_NAME);
+
     const reportProgress = (fileKey, loaded, total) => {
       loadedSizes[fileKey] = loaded;
       const totalLoaded = Object.values(loadedSizes).reduce((a, b) => a + b, 0);
@@ -86,117 +85,104 @@ async function loadResources() {
       self.postMessage({ 
         type: 'progress', 
         percent, 
-        message: `Đang tải bộ giọng nói Đức Thorsten: ${percent}% (${Math.round(totalLoaded/1024/1024)}MB / ${Math.round(grandTotal/1024/1024)}MB)` 
+        message: `Đang tải giọng nói Đức: ${percent}% (${Math.round(totalLoaded/1024/1024)}MB / ${Math.round(grandTotal/1024/1024)}MB)` 
       });
     };
 
-    // Tải song song tất cả tài nguyên
-    const [modelBuf, espeakBuf, tokensBuf, wasmBuf, jsBuf] = await Promise.all([
-      fetchWithProgress(FILES.model, 'model', reportProgress),
-      fetchWithProgress(FILES.espeakData, 'espeakData', reportProgress),
-      fetchWithProgress(FILES.tokens, 'tokens', reportProgress),
-      fetchWithProgress(FILES.wasmWasm, 'wasmWasm', reportProgress),
-      fetchWithProgress(FILES.wasmJs, 'wasmJs', reportProgress)
+    // Tải song song tất cả tài nguyên từ domain của app
+    const [wasmJsBlob, ttsJsBlob, wasmWasmBlob, wasmDataBlob] = await Promise.all([
+      fetchWithProgress(FILES.wasmJs, 'wasmJs', reportProgress, cache),
+      fetchWithProgress(FILES.ttsJs, 'ttsJs', reportProgress, cache),
+      fetchWithProgress(FILES.wasmWasm, 'wasmWasm', reportProgress, cache),
+      fetchWithProgress(FILES.wasmData, 'wasmData', reportProgress, cache)
     ]);
 
     self.postMessage({ type: 'status', status: 'initializing', message: 'Đang khởi tạo bộ giải dịch WASM...' });
 
-    // Chuyển đổi jsBuffer thành chuỗi text để import động
-    const jsDecoder = new TextDecoder('utf-8');
-    const jsCode = jsDecoder.decode(new Uint8Array(jsBuf));
-    
-    // Inject mã của worker vào runtime
-    // Đoạn code glue js này sẽ định nghĩa biến toàn cục Module
-    const blob = new Blob([jsCode], { type: 'application/javascript' });
-    const blobUrl = URL.createObjectURL(blob);
-    importScripts(blobUrl);
-    URL.revokeObjectURL(blobUrl);
+    // Tạo Object URL cho wasm và data để Emscripten load
+    const wasmWasmUrl = URL.createObjectURL(wasmWasmBlob);
+    const wasmDataUrl = URL.createObjectURL(wasmDataBlob);
 
-    // Module sẽ được cung cấp bởi thư viện sherpa-onnx-tts-worker.js
-    if (typeof createSherpaOnnxTts === 'undefined' && typeof self.createSherpaOnnxTts === 'undefined') {
-      throw new Error('createSherpaOnnxTts is not defined in the loaded JS.');
-    }
-
-    const initTts = typeof createSherpaOnnxTts !== 'undefined' ? createSherpaOnnxTts : self.createSherpaOnnxTts;
-
-    // Khởi tạo đối tượng WebAssembly Module
-    Module = await initTts({
-      wasmBinary: wasmBuf,
-      print: console.log,
-      printErr: console.error
-    });
-
-    // Ghi các file buffer vào hệ thống tệp ảo của Emscripten (FS)
-    Module.FS.writeFile('/de_DE-thorsten-medium.onnx', new Uint8Array(modelBuf));
-    Module.FS.writeFile('/tokens.txt', new Uint8Array(tokensBuf));
-    Module.FS.writeFile('/espeak-ng-data.tar', new Uint8Array(espeakBuf));
-    
-    // Tạo thư mục và giải nén espeak-ng-data
-    Module.FS.mkdir('/espeak-ng-data');
-    // sherpa-onnx cung cấp hàm giải nén tar ảo nội bộ
-    if (Module.unzipTar) {
-      Module.unzipTar('/espeak-ng-data.tar', '/espeak-ng-data');
-    } else {
-      // Fallback nếu không có hàm unzip: sherpa-onnx sẽ tự động giải nén khi khởi tạo nếu đọc file tar
-      Module.FS.writeFile('/espeak-ng-data.tar', new Uint8Array(espeakBuf));
-    }
-
-    // Cấu hình khởi tạo bộ TTS của Sherpa-Onnx
-    const ttsConfig = {
-      vits: {
-        model: '/de_DE-thorsten-medium.onnx',
-        tokens: '/tokens.txt',
-        dataDir: '/espeak-ng-data',
-        noiseScale: 0.667,
-        noiseScaleW: 0.8,
-        lengthScale: 1.0
+    // Cấu hình Emscripten Module
+    self.Module = {
+      locateFile: function (path) {
+        if (path === 'sherpa-onnx-wasm-main-tts.wasm') return wasmWasmUrl;
+        if (path === 'sherpa-onnx-wasm-main-tts.data') return wasmDataUrl;
+        return path;
       },
-      numThreads: 1,
-      provider: 'cpu'
+      setStatus: function (status) {
+        console.log('[Piper WASM status]', status);
+      },
+      onRuntimeInitialized: function () {
+        console.log('[Piper Worker] WASM Runtime initialized!');
+        try {
+          // Cấu hình cụ thể đường dẫn tệp trong VFS của WASM (.data file)
+          const myConfig = {
+            offlineTtsModelConfig: {
+              offlineTtsVitsModelConfig: {
+                model: './de_DE-thorsten_emotional-medium.onnx',
+                lexicon: '',
+                tokens: './tokens.txt',
+                dataDir: './espeak-ng-data',
+                noiseScale: 0.667,
+                noiseScaleW: 0.8,
+                lengthScale: 1.0,
+              },
+              numThreads: 1,
+              debug: 1,
+              provider: 'cpu',
+            },
+            ruleFsts: '',
+            ruleFars: '',
+            maxNumSentences: 1,
+          };
+
+          // Khởi tạo TTS engine với cấu hình đúng đường dẫn mô hình
+          ttsInstance = createOfflineTts(self.Module, myConfig);
+          self.postMessage({ type: 'status', status: 'ready', message: 'Giọng đọc Piper Đức (Thorsten) đã sẵn sàng!' });
+        } catch (e) {
+          console.error('[Piper Worker] Lỗi khởi tạo TTS:', e);
+          self.postMessage({ type: 'status', status: 'error', message: `Lỗi khởi tạo TTS: ${e.message}` });
+        }
+      }
     };
 
-    ttsInstance = new Module.SherpaOnnxTts(ttsConfig);
+    // Tạo Object URL cho các file JS và import động để chạy
+    const wasmJsUrl = URL.createObjectURL(wasmJsBlob);
+    const ttsJsUrl = URL.createObjectURL(ttsJsBlob);
 
-    self.postMessage({ type: 'status', status: 'ready', message: 'Giọng đọc Piper Đức (Thorsten) đã sẵn sàng!' });
+    importScripts(wasmJsUrl);
+    importScripts(ttsJsUrl);
+
+    // Thu hồi URL tạm của JS sau khi import
+    URL.revokeObjectURL(wasmJsUrl);
+    URL.revokeObjectURL(ttsJsUrl);
+
   } catch (error) {
-    console.error('[Piper Worker] Lỗi khởi tạo:', error);
+    console.error('[Piper Worker] Lỗi tải tài nguyên:', error);
     self.postMessage({ type: 'status', status: 'error', message: `Lỗi tải giọng nói: ${error.message}` });
   }
 }
 
-// Hàm ghi mã WAV từ mảng PCM Float32
+// Xử lý ghi file WAV từ Float32 samples
 function writeWav(samples, sampleRate) {
   const buffer = new ArrayBuffer(44 + samples.length * 2);
   const view = new DataView(buffer);
 
-  /* RIFF identifier */
   writeString(view, 0, 'RIFF');
-  /* file length */
   view.setUint32(4, 36 + samples.length * 2, true);
-  /* RIFF type */
   writeString(view, 8, 'WAVE');
-  /* format chunk identifier */
   writeString(view, 12, 'fmt ');
-  /* format chunk length */
   view.setUint32(16, 16, true);
-  /* sample format (raw) */
   view.setUint16(20, 1, true);
-  /* channel count */
   view.setUint16(22, 1, true);
-  /* sample rate */
   view.setUint32(24, sampleRate, true);
-  /* byte rate (sample rate * block align) */
   view.setUint32(28, sampleRate * 2, true);
-  /* block align (channel count * bytes per sample) */
   view.setUint16(32, 2, true);
-  /* bits per sample */
   view.setUint16(34, 16, true);
-  /* data chunk identifier */
   writeString(view, 36, 'data');
-  /* data chunk length */
   view.setUint32(40, samples.length * 2, true);
 
-  // Ghi PCM samples dưới dạng 16-bit signed integer
   let offset = 44;
   for (let i = 0; i < samples.length; i++, offset += 2) {
     const s = Math.max(-1, Math.min(1, samples[i]));
@@ -212,7 +198,6 @@ function writeString(view, offset, string) {
   }
 }
 
-// Xử lý các tin nhắn từ Main Thread
 self.onmessage = async (e) => {
   const { type, text, speed = 1.0, speakerId = 0 } = e.data;
 
@@ -220,24 +205,23 @@ self.onmessage = async (e) => {
     await loadResources();
   } else if (type === 'speak') {
     if (!ttsInstance) {
-      self.postMessage({ type: 'speak_error', message: 'Mô hình chưa được khởi tạo thành công.' });
+      self.postMessage({ type: 'speak_error', message: 'Mô hình chưa được khởi tạo thành công.', text });
       return;
     }
 
     try {
-      // Cấu hình tốc độ đọc động
-      ttsInstance.setSpeed(speed);
+      // Gọi generate âm thanh từ ttsInstance
+      const audioObj = ttsInstance.generate({
+        text: text,
+        sid: speakerId || 0,
+        speed: speed || 1.0
+      });
 
-      // Tạo giọng nói (generate âm thanh)
-      // Hàm generate trả về đối tượng có { samples: Float32Array, sampleRate: number }
-      const audioObj = ttsInstance.generate(text, speakerId);
-      
       if (!audioObj || !audioObj.samples || audioObj.samples.length === 0) {
-        throw new Error('Sinh dữ liệu PCM trống.');
+        throw new Error('Dữ liệu PCM sinh ra bị trống.');
       }
 
-      // Đóng gói mảng Float32 PCM thành file WAV Blob
-      const wavBlob = writeWav(audioObj.samples, audioObj.sampleRate);
+      const wavBlob = writeWav(audioObj.samples, ttsInstance.sampleRate);
       
       self.postMessage({ 
         type: 'speak_success', 
@@ -246,16 +230,22 @@ self.onmessage = async (e) => {
       });
     } catch (err) {
       console.error('[Piper Worker] Lỗi phát âm:', err);
-      self.postMessage({ type: 'speak_error', message: `Lỗi phát âm: ${err.message}` });
+      self.postMessage({ type: 'speak_error', message: `Lỗi phát âm: ${err.message}`, text });
     }
   } else if (type === 'check_status') {
     if (ttsInstance) {
       self.postMessage({ type: 'status', status: 'ready', message: 'Giọng đọc Piper Đức (Thorsten) đã sẵn sàng!' });
     } else {
-      // Kiểm tra xem đã có cache chưa
       const cache = await caches.open(CACHE_NAME);
-      const cached = await cache.match(FILES.model);
-      self.postMessage({ type: 'status', status: cached ? 'cached' : 'not_loaded', message: cached ? 'Gói giọng nói đã tải về máy học viên. Cần kích hoạt.' : 'Chưa tải gói giọng nói.' });
+      const cachedWasm = await cache.match(FILES.wasmWasm);
+      const cachedData = await cache.match(FILES.wasmData);
+      const isCached = cachedWasm && cachedData;
+      
+      self.postMessage({ 
+        type: 'status', 
+        status: isCached ? 'cached' : 'not_loaded', 
+        message: isCached ? 'Gói giọng nói đã tải về máy. Cần kích hoạt.' : 'Chưa tải gói giọng nói.' 
+      });
     }
   }
 };

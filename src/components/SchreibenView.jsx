@@ -14,7 +14,7 @@ import { gradeWriting } from '../services/aiService';
 import { recordAttempt } from '../utils/learningStore';
 import CorrectionPracticeCard from './CorrectionPracticeCard';
 
-export default function SchreibenView({ showToast, onActivityComplete }) {
+export default function SchreibenView({ showToast, onActivityComplete, currentUser, onAuthClick }) {
   const [selectedWriteTopic, setSelectedWriteTopic] = useState(SCHREIBEN_TOPICS[0]);
   const [writeText, setWriteText] = useState('');
   const [isWritingGrading, setIsWritingGrading] = useState(false);
@@ -47,6 +47,11 @@ export default function SchreibenView({ showToast, onActivityComplete }) {
   };
 
   const handleSchreibenGrade = async () => {
+    if (!currentUser) {
+      showToast('Tính năng chấm điểm Viết bằng AI yêu cầu đăng nhập tài khoản. Vui lòng đăng nhập hoặc đăng ký tài khoản miễn phí để tiếp tục!', 'warning');
+      onAuthClick();
+      return;
+    }
     if (countWords(writeText) < Math.ceil(wordTarget / 2)) {
       showToast('Bài dưới 50% độ dài yêu cầu. Hãy viết ít nhất ' + Math.ceil(wordTarget / 2) + ' từ.', 'warning');
       return;

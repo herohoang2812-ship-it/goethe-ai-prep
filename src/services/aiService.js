@@ -4,8 +4,65 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { normalizeLearningError } from '../utils/errorTaxonomy';
+import { auth } from './firebase';
+import { deductAiCreditOnDb } from './dbService';
 
 const AI_PROXY_URL = import.meta.env.VITE_AI_PROXY_URL || '/api/ai';
+
+/**
+ * Làm sạch và phân tích cú pháp chuỗi JSON trả về từ AI một cách bền bỉ,
+ * xử lý các lỗi phổ biến như dấu phẩy thừa hoặc xuống dòng thực tế trong chuỗi.
+ * @param {string} rawText
+ * @returns {object}
+ */
+function cleanAndParseJSON(rawText) {
+  if (!rawText) throw new Error('Dữ liệu phản hồi từ AI trống.');
+
+  const firstBrace = rawText.indexOf('{');
+  const lastBrace = rawText.lastIndexOf('}');
+
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
+    console.error('[cleanAndParseJSON] Không tìm thấy JSON. Phản hồi thực tế từ AI:', rawText);
+    const excerpt = rawText.trim().slice(0, 300);
+    throw new Error(`Không tìm thấy khối dữ liệu JSON trong phản hồi của AI. Nội dung nhận được: "${excerpt}${rawText.length > 300 ? '...' : ''}"`);
+  }
+
+  let jsonString = rawText.substring(firstBrace, lastBrace + 1);
+
+  // 1. Loại bỏ các dòng chú thích nếu AI lỡ viết vào
+  jsonString = jsonString
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(?:^|[^:])\/\/.*$/gm, '');
+
+  // 2. Loại bỏ dấu phẩy thừa (trailing commas) trước ngoặc đóng
+  jsonString = jsonString.replace(/,\s*([\]}])/g, '$1');
+
+  // 3. Sửa ký tự xuống dòng và tab thực tế nằm bên trong chuỗi ngoặc kép
+  jsonString = jsonString.replace(/"(?:[^"\\]|\\.)*"/g, (match) => {
+    return match.replace(/[\r\n\t]/g, (char) => {
+      if (char === '\n') return '\\n';
+      if (char === '\r') return '\\r';
+      if (char === '\t') return '\\t';
+      return char;
+    });
+  });
+
+  try {
+    return JSON.parse(jsonString);
+  } catch (err) {
+    console.warn('[cleanAndParseJSON] Parse lần đầu thất bại, đang thử dọn dẹp ký tự điều khiển...', err);
+    // Thử làm sạch triệt để các ký tự điều khiển không hợp lệ (control characters)
+    // eslint-disable-next-line no-control-regex
+    const cleanStr = jsonString.replace(/[\u0000-\u001f]/g, '');
+    try {
+      return JSON.parse(cleanStr);
+    } catch (err2) {
+      console.error('[cleanAndParseJSON] Thất bại hoàn toàn. Nội dung chuỗi JSON sau khi làm sạch:', jsonString);
+      const excerpt = jsonString.trim().slice(0, 300);
+      throw new Error(`JSON phản hồi từ AI không hợp lệ: ${err2.message}. Nội dung nhận được: "${excerpt}${jsonString.length > 300 ? '...' : ''}"`);
+    }
+  }
+}
 
 /**
  * Gọi API AI với một mảng messages (OpenAI-compatible format)
@@ -47,6 +104,9 @@ async function callAI(messages, maxTokens = 1024) {
  * @returns {Promise<object>} - kết quả chấm điểm theo format SchreibenView
  */
 export async function gradeWriting(userText, topicTitle, topicType, requirements) {
+  if (auth.currentUser) {
+    await deductAiCreditOnDb(auth.currentUser.uid);
+  }
   const requirementsText = requirements.map((r, i) => `${i+1}. ${r}`).join('\n');
 
   const systemPrompt = `Bạn là giám khảo kỳ thi Goethe-Zertifikat chuyên nghiệp. 
@@ -73,7 +133,9 @@ Yêu cầu:
 - Điểm score là số nguyên từ 0 đến 100.
 - Năm tiêu chí đều chấm trên 20 điểm và score là tổng của năm tiêu chí.
 - Với B2, đánh giá đúng register, đủ Sprachfunktionen, mở bài/kết luận và độ dài yêu cầu; dưới 50% độ dài là không hoàn thành nhiệm vụ.
-- Kohärenz phải xét logic và liên kết câu/đoạn; Wortschatz và Strukturen phải xét độ đa dạng lẫn độ chính xác.`;
+- Kohärenz phải xét logic và liên kết câu/đoạn; Wortschatz và Strukturen phải xét độ đa dạng lẫn độ chính xác.
+
+QUAN TRỌNG: Toàn bộ phản hồi phải là một đối tượng JSON hợp lệ duy nhất. KHÔNG sử dụng ký tự xuống dòng thực tế (literal newline) bên trong các giá trị chuỗi (ví dụ: trong "rewrite" hoặc "strengths"), hãy dùng ký tự "\\n" thay thế nếu muốn xuống dòng. KHÔNG sử dụng dấu ngoặc kép lồng nhau bên trong các chuỗi trừ khi được trốn (escape) dưới dạng \\".`;
 
   const userMessage = `ĐỀ BÀI: ${topicTitle} (${topicType})
 YÊU CẦU ĐỀ BÀI:
@@ -97,10 +159,7 @@ Hãy chấm điểm bài viết này.`;
       throw new Error('Máy chủ AI (vilao.ai) trả về kết quả rỗng (0 output tokens). Vui lòng kiểm tra lại số dư hoặc trạng thái mô hình trên dashboard.');
     }
 
-    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('AI response không chứa JSON hợp lệ');
-
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = cleanAndParseJSON(rawResponse);
 
     return {
       score:           parsed.score          ?? 60,
@@ -133,6 +192,9 @@ Hãy chấm điểm bài viết này.`;
  * @returns {Promise<object>}
  */
 export async function gradeSpeaking(topicTitle, topicType, prompts, chatHistory) {
+  if (auth.currentUser) {
+    await deductAiCreditOnDb(auth.currentUser.uid);
+  }
   const userTurns = chatHistory
     .filter(m => m.sender === 'user')
     .map(m => m.text)
@@ -155,7 +217,9 @@ Phản hồi BẮT BUỘC theo đúng định dạng JSON sau, không thêm text
   ],
   "improvements": "Lời khuyên cải thiện bằng tiếng Việt"
 }
-Lưu ý: Transcript là text chuyển từ giọng nói (STT), có thể có lỗi nhận diện nhỏ. Hãy đánh giá linh hoạt về nội dung và ngữ pháp. Các chỉ số điểm là số từ 0 đến 100. Mỗi grammaticalFix phải có category thuộc taxonomy của Schreiben, drillPrompt và expectedAnswer.`;
+Lưu ý: Transcript là text chuyển từ giọng nói (STT), có thể có lỗi nhận diện nhỏ. Hãy đánh giá linh hoạt về nội dung và ngữ pháp. Các chỉ số điểm là số từ 0 đến 100. Mỗi grammaticalFix phải có category thuộc taxonomy của Schreiben, drillPrompt và expectedAnswer.
+
+QUAN TRỌNG: Toàn bộ phản hồi phải là một đối tượng JSON hợp lệ duy nhất. KHÔNG sử dụng ký tự xuống dòng thực tế (literal newline) bên trong các giá trị chuỗi (ví dụ: trong "feedback" hoặc "improvements"), hãy dùng ký tự "\\n" thay thế nếu muốn xuống dòng. KHÔNG sử dụng dấu ngoặc kép lồng nhau bên trong các chuỗi trừ khi được trốn (escape) dưới dạng \\".`;
 
   const userMessage = `ĐỀ NÓI: ${topicTitle} (${topicType})
 GỢI Ý THẢO LUẬN:
@@ -179,10 +243,7 @@ Hãy đánh giá phần nói này.`;
       throw new Error('Máy chủ AI (vilao.ai) trả về kết quả rỗng (0 output tokens) cho phần nói.');
     }
 
-    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('AI response không chứa JSON hợp lệ');
-
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = cleanAndParseJSON(rawResponse);
 
     return {
       fluency:          parsed.fluency          ?? 60,
@@ -212,6 +273,9 @@ Hãy đánh giá phần nói này.`;
  * @returns {Promise<string>}   - phản hồi của AI bằng tiếng Đức
  */
 export async function chatWithExaminer(topicTitle, scenario, prompts, chatHistory, userMessage) {
+  if (auth.currentUser) {
+    await deductAiCreditOnDb(auth.currentUser.uid);
+  }
   const promptsText = prompts.map((p) => `- ${p}`).join('\n');
 
   const systemPrompt = `Du bist ein Prüfer beim Goethe-Zertifikat Sprechen. 

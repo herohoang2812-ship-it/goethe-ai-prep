@@ -2,15 +2,15 @@
 // ttsService — Dịch vụ phát âm tập trung hỗ trợ đa nguồn (Google, Piper WASM, System)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { recordAttempt } from "../utils/learningStore";
-
 let piperWorker = null;
 let currentAudio = null;
+let currentUtterance = null;
 let audioQueue = [];
 let queueIndex = 0;
 let isPlaying = false;
 let isPiperWorkerReady = false;
 let currentOnEnd = null;
+let currentOptions = {};
 
 // Callbacks cập nhật giao diện khi tải mô hình Piper
 let onPiperProgress = null;
@@ -24,7 +24,7 @@ function initPiperWorker() {
   piperWorker = new Worker('/piperWorker.js');
 
   piperWorker.onmessage = (e) => {
-    const { type, percent, message, status, blob } = e.data;
+    const { type, percent, message, status, blob, text } = e.data;
 
     if (type === 'progress') {
       if (onPiperProgress) onPiperProgress(percent, message);
@@ -37,12 +37,16 @@ function initPiperWorker() {
       }
       if (onPiperStatus) onPiperStatus(status, message);
     } else if (type === 'speak_success') {
-      playWavBlob(blob);
+      // Kiểm tra xem có đang chạy và khớp với chunk hiện tại không
+      if (isPlaying && audioQueue[queueIndex]?.trim() === text?.trim()) {
+        playWavBlob(blob);
+      }
     } else if (type === 'speak_error') {
       console.error('[ttsService] Piper Speak Error:', message);
-      isPlaying = false;
-      // Fallback về giọng hệ thống nếu Piper lỗi
-      fallbackSystemSpeak(e.data.text);
+      if (isPlaying && audioQueue[queueIndex]?.trim() === text?.trim()) {
+        // Fallback về giọng hệ thống cho chunk này
+        playSystemChunk(text, currentOptions);
+      }
     }
   };
 
@@ -76,27 +80,59 @@ export function stop() {
   audioQueue = [];
   queueIndex = 0;
   currentOnEnd = null;
+  currentOptions = {};
 
   if (currentAudio) {
-    currentAudio.pause();
-    currentAudio.currentTime = 0;
+    try {
+      currentAudio.pause();
+    } catch (e) {
+      console.error('[ttsService] stop currentAudio pause error:', e);
+    }
     currentAudio = null;
   }
 
+  if (currentUtterance) {
+    currentUtterance.onend = null;
+    currentUtterance.onerror = null;
+    currentUtterance = null;
+  }
+
   if ('speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
+    try {
+      window.speechSynthesis.cancel();
+    } catch (e) {
+      console.error('[ttsService] stop speechSynthesis cancel error:', e);
+    }
   }
 }
 
-// Phát âm dùng Web Speech API (Hệ thống)
-function fallbackSystemSpeak(text, options = {}) {
+// Khi một chunk hoàn thành, chuyển sang phát chunk tiếp theo
+function onChunkFinished() {
+  if (!isPlaying) return;
+  queueIndex++;
+  playCurrentChunk();
+}
+
+// Phát âm một chunk bằng giọng hệ thống
+function playSystemChunk(chunk, options = {}) {
   if (!('speechSynthesis' in window)) {
-    if (currentOnEnd) currentOnEnd();
+    console.warn('[ttsService] Web Speech API không được hỗ trợ.');
+    onChunkFinished();
     return;
   }
-  window.speechSynthesis.cancel();
 
-  const utterance = new SpeechSynthesisUtterance(text);
+  if (currentUtterance) {
+    currentUtterance.onend = null;
+    currentUtterance.onerror = null;
+  }
+
+  const trimmed = chunk.trim();
+  if (!trimmed) {
+    onChunkFinished();
+    return;
+  }
+
+  const utterance = new SpeechSynthesisUtterance(trimmed);
   utterance.lang = 'de-DE';
   utterance.rate = options.rate || 0.95;
   utterance.pitch = options.pitch || 1.0;
@@ -108,12 +144,21 @@ function fallbackSystemSpeak(text, options = {}) {
   }
 
   utterance.onend = () => {
-    if (currentOnEnd) currentOnEnd();
-  };
-  utterance.onerror = () => {
-    if (currentOnEnd) currentOnEnd();
+    if (currentUtterance === utterance) {
+      currentUtterance = null;
+      onChunkFinished();
+    }
   };
 
+  utterance.onerror = (e) => {
+    console.warn('[ttsService] SpeechSynthesis error:', e);
+    if (currentUtterance === utterance) {
+      currentUtterance = null;
+      onChunkFinished();
+    }
+  };
+
+  currentUtterance = utterance;
   window.speechSynthesis.speak(utterance);
 }
 
@@ -122,132 +167,163 @@ function playWavBlob(blob) {
   try {
     if (currentAudio) {
       currentAudio.pause();
+      currentAudio = null;
     }
 
     const audioUrl = URL.createObjectURL(blob);
-    currentAudio = new Audio(audioUrl);
+    const audio = new Audio(audioUrl);
+    currentAudio = audio;
     
-    currentAudio.onended = () => {
+    audio.onended = () => {
       URL.revokeObjectURL(audioUrl);
-      currentAudio = null;
-      isPlaying = false;
-      playNextQueue();
+      if (currentAudio === audio) {
+        currentAudio = null;
+        onChunkFinished();
+      }
     };
 
-    currentAudio.onerror = (err) => {
-      console.error('[ttsService] Audio playback error:', err);
+    audio.onerror = (err) => {
+      console.error('[ttsService] Piper WAV play error:', err);
       URL.revokeObjectURL(audioUrl);
-      currentAudio = null;
-      isPlaying = false;
-      playNextQueue();
+      if (currentAudio === audio) {
+        currentAudio = null;
+        const currentChunk = audioQueue[queueIndex];
+        playSystemChunk(currentChunk, currentOptions);
+      }
     };
 
-    currentAudio.play().catch(e => {
-      console.error('[ttsService] Play failed:', e);
-      isPlaying = false;
-      playNextQueue();
+    audio.play().catch(err => {
+      console.error('[ttsService] Piper WAV play catch:', err);
+      URL.revokeObjectURL(audioUrl);
+      if (currentAudio === audio) {
+        currentAudio = null;
+        const currentChunk = audioQueue[queueIndex];
+        playSystemChunk(currentChunk, currentOptions);
+      }
     });
   } catch (e) {
     console.error('[ttsService] playWavBlob error:', e);
-    isPlaying = false;
+    onChunkFinished();
   }
 }
 
-// Phát âm dùng Google Translate TTS API (Có cắt chuỗi và tạo hàng đợi)
-function playGoogleTTS(text, options = {}) {
-  stop();
-  const chunks = splitTextIntoChunks(text, 180);
-  if (!chunks.length) return;
-
-  audioQueue = chunks;
-  queueIndex = 0;
-  isPlaying = true;
-  playNextGoogleChunk();
-}
-
-function playNextGoogleChunk() {
-  if (!isPlaying || queueIndex >= audioQueue.length) {
-    isPlaying = false;
-    if (currentOnEnd) currentOnEnd();
+// Phát âm một chunk bằng Google TTS
+function playGoogleChunk(chunk) {
+  const trimmed = chunk.trim();
+  if (!trimmed) {
+    onChunkFinished();
     return;
   }
 
-  const chunk = audioQueue[queueIndex];
-  const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=de&client=tw-ob&q=${encodeURIComponent(chunk)}`;
+  const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=de&client=tw-ob&q=${encodeURIComponent(trimmed)}`;
   
   if (currentAudio) {
     currentAudio.pause();
+    currentAudio = null;
   }
 
-  currentAudio = new Audio(url);
-  currentAudio.onended = () => {
-    queueIndex++;
-    playNextGoogleChunk();
+  const audio = new Audio(url);
+  currentAudio = audio;
+
+  audio.onended = () => {
+    if (currentAudio === audio) {
+      currentAudio = null;
+      onChunkFinished();
+    }
   };
 
-  currentAudio.onerror = (e) => {
+  audio.onerror = () => {
     console.warn('[ttsService] Google TTS error, falling back to system voice.');
-    fallbackSystemSpeak(chunk);
-    queueIndex++;
-    playNextGoogleChunk();
+    if (currentAudio === audio) {
+      currentAudio = null;
+      playSystemChunk(trimmed, currentOptions);
+    }
   };
 
-  currentAudio.play().catch(err => {
-    console.error(err);
-    fallbackSystemSpeak(chunk);
-    queueIndex++;
-    playNextGoogleChunk();
+  audio.play().catch(() => {
+    console.warn('[ttsService] Google TTS play catch, falling back to system voice.');
+    if (currentAudio === audio) {
+      currentAudio = null;
+      playSystemChunk(trimmed, currentOptions);
+    }
   });
 }
 
-// Quản lý hàng đợi phát âm chung cho Piper
-function playNextQueue() {
-  if (!isPlaying || queueIndex >= audioQueue.length) {
-    isPlaying = false;
-    if (currentOnEnd) currentOnEnd();
+// Phát âm một chunk bằng Piper WASM
+function playPiperChunk(chunk) {
+  const trimmed = chunk.trim();
+  if (!trimmed) {
+    onChunkFinished();
     return;
   }
-
-  const chunk = audioQueue[queueIndex];
-  queueIndex++;
 
   if (piperWorker && isPiperWorkerReady) {
     piperWorker.postMessage({
       type: 'speak',
-      text: chunk,
-      speed: 1.0,
+      text: trimmed,
+      speed: currentOptions.rate || 1.0,
       speakerId: 0
     });
   } else {
-    fallbackSystemSpeak(chunk);
-    playNextQueue();
+    console.warn('[ttsService] Piper worker not ready, falling back to system voice.');
+    playSystemChunk(trimmed, currentOptions);
+  }
+}
+
+// Điều phối phát chunk hiện tại dựa trên cấu hình nhà cung cấp
+function playCurrentChunk() {
+  if (!isPlaying) return;
+
+  if (queueIndex >= audioQueue.length) {
+    isPlaying = false;
+    const onEndCallback = currentOnEnd;
+    currentOnEnd = null;
+    if (onEndCallback) {
+      onEndCallback();
+    }
+    return;
+  }
+
+  const chunk = audioQueue[queueIndex];
+  const provider = localStorage.getItem('goethe_tts_provider') || 'google';
+
+  if (provider === 'system') {
+    playSystemChunk(chunk, currentOptions);
+  } else if (provider === 'piper') {
+    if (!isPiperWorkerReady) {
+      console.warn('[ttsService] Piper chưa được tải, tự động chuyển về Google AI');
+      playGoogleChunk(chunk);
+    } else {
+      playPiperChunk(chunk);
+    }
+  } else {
+    playGoogleChunk(chunk);
   }
 }
 
 // Phương thức phát âm chính
 export function speak(text, options = {}) {
-  const provider = localStorage.getItem('goethe_tts_provider') || 'google';
-  currentOnEnd = options.onEnd || null;
+  // Dừng mọi âm thanh và hàng đợi cũ trước khi thiết lập phiên phát mới
+  stop();
 
-  if (provider === 'system') {
-    fallbackSystemSpeak(text, options);
-  } else if (provider === 'piper') {
-    if (!isPiperWorkerReady) {
-      console.warn('[ttsService] Piper chưa được tải, tự động chuyển về Google AI');
-      playGoogleTTS(text, options);
-      return;
+  currentOnEnd = options.onEnd || null;
+  currentOptions = options || {};
+
+  const chunks = splitTextIntoChunks(text, 180);
+  if (!chunks.length) {
+    if (currentOnEnd) {
+      const onEndCallback = currentOnEnd;
+      currentOnEnd = null;
+      onEndCallback();
     }
-    // Cắt text và đưa vào hàng đợi
-    stop();
-    const chunks = splitTextIntoChunks(text, 180);
-    audioQueue = chunks;
-    queueIndex = 0;
-    isPlaying = true;
-    playNextQueue();
-  } else {
-    // Mặc định: google
-    playGoogleTTS(text, options);
+    return;
   }
+
+  audioQueue = chunks;
+  queueIndex = 0;
+  isPlaying = true;
+
+  playCurrentChunk();
 }
 
 // Bắt đầu tải và cache gói mô hình Piper
@@ -257,7 +333,6 @@ export function loadPiper(onProgress, onStatus) {
 
   initPiperWorker();
   
-  // Gửi lệnh tải tài nguyên
   if (piperWorker) {
     piperWorker.postMessage({ type: 'load' });
   }

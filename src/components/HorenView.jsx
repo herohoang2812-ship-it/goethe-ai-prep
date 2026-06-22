@@ -23,9 +23,23 @@ export default function HorenView({ showToast, onActivityComplete }) {
   const part = B2_HOREN_PARTS[partIndex];
   const allQuestions = useMemo(() => B2_HOREN_PARTS.flatMap(item => item.questions), []);
   const learningMode = mode === 'learn';
+  const playTimeoutRef = useRef(null);
 
-  const stopAudio = () => { stop(); setIsPlaying(false); setActiveSegment(-1); };
-  useEffect(() => () => stop(), []);
+  const stopAudio = () => {
+    stop();
+    setIsPlaying(false);
+    setActiveSegment(-1);
+    if (playTimeoutRef.current) {
+      clearTimeout(playTimeoutRef.current);
+      playTimeoutRef.current = null;
+    }
+  };
+  useEffect(() => () => {
+    stop();
+    if (playTimeoutRef.current) {
+      clearTimeout(playTimeoutRef.current);
+    }
+  }, []);
 
   const finish = (automatic = false) => {
     if (submitted) return;
@@ -88,7 +102,7 @@ export default function HorenView({ showToast, onActivityComplete }) {
         rate: learningMode ? speechRate : 0.96,
         pitch: 0.92 + (voiceIndex % 3) * 0.09,
         onEnd: () => {
-          setTimeout(() => {
+          playTimeoutRef.current = setTimeout(() => {
             playNextSegment();
           }, 450);
         }

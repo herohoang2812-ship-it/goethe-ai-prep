@@ -16,8 +16,9 @@ import {
 } from 'lucide-react';
 import { getDiagnosticResult } from '../utils/diagnosticEngine';
 import { loadPiper, checkPiperStatus, isPiperLoaded } from '../services/ttsService';
+import { updateUserProfileOnDb } from '../services/dbService';
 
-export default function DashboardView({ setActiveTab, userStreak, userProfile, setUserProfile }) {
+export default function DashboardView({ setActiveTab, userStreak, userProfile, setUserProfile, currentUser, onAuthClick }) {
   const [stats, setStats] = useState({
     predictedScore: '76/100',
     essaysCount: '0 bài',
@@ -61,6 +62,9 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
         if (status === 'ready' || status === 'cached') {
           setPiperStatus('ready');
         }
+        if (status === 'error') {
+          setPiperProgressMsg(msg || 'Lỗi không xác định.');
+        }
       });
     }
   };
@@ -79,6 +83,9 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
         if (status === 'ready') {
           setPiperStatus('ready');
         }
+        if (status === 'error') {
+          setPiperProgressMsg(msg || 'Lỗi tải mô hình.');
+        }
       }
     );
   };
@@ -88,8 +95,9 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
       case 'not_loaded': return 'Chưa tải';
       case 'cached': return 'Đã tải (Chưa kích hoạt)';
       case 'downloading': return 'Đang tải về máy...';
-      case 'initializing': return 'Đang cài đặt...';
+      case 'initializing': return 'Đang khởi tạo...';
       case 'ready': return 'Sẵn sàng (Offline)';
+      case 'error': return 'Lỗi tải về';
       default: return 'Chưa tải';
     }
   };
@@ -165,15 +173,32 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
     setIsEditModalOpen(true);
   };
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
     if (!editForm.name.trim()) {
       alert('Vui lòng điền tên hợp lệ!');
       return;
     }
-    const updatedProfile = { ...editForm };
+    const updatedProfile = { 
+      ...userProfile,
+      name: editForm.name,
+      level: editForm.level,
+      specialty: editForm.specialty
+    };
     setUserProfile(updatedProfile);
     localStorage.setItem('goethe_user_profile', JSON.stringify(updatedProfile));
+    
+    if (currentUser) {
+      try {
+        await updateUserProfileOnDb(currentUser.uid, {
+          name: editForm.name,
+          level: editForm.level,
+          specialty: editForm.specialty
+        });
+      } catch (err) {
+        console.error('[DashboardView] Lỗi cập nhật hồ sơ trên Firestore:', err);
+      }
+    }
     setIsEditModalOpen(false);
   };
 
@@ -277,25 +302,100 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
           </div>
         </div>
 
-        {/* Right Column: AI Insights */}
-        <div className="col-4 glass-panel panel-lg flex-col anim-fade-in-up anim-delay-4" style={{ justifyContent: 'stretch' }}>
-          <h3 className="section-title">
-            <Sparkles className="text-primary" size={18} />
-            Gợi ý từ AI
-          </h3>
-          <p className="text-muted" style={{ fontSize: '14px', lineHeight: 1.6, marginBottom: '20px' }}>
-            Hệ thống phân tích khuyên bạn nên làm quen với các mẫu câu đặc trưng (Redemittel) của trình độ <strong style={{ color: 'var(--primary)' }}>{userProfile.level}</strong> chuyên ngành <strong style={{ color: 'var(--primary)' }}>{getSpecialtyName(userProfile.specialty)}</strong> để nâng cao band điểm nhanh nhất.
-          </p>
-          
-          <div className="ai-insight-box" style={{ marginBottom: '20px' }}>
-            <div className="ai-insight-label">Đề xuất hành động</div>
-            <div className="ai-insight-text">Luyện viết một đề viết mới và áp dụng tối thiểu 3 câu mẫu Redemittel hữu ích.</div>
+        {/* Right Column: AI Insights & Quotas */}
+        <div className="col-4 flex-col gap-md">
+          {/* AI Insights Card */}
+          <div className="glass-panel panel-lg flex-col anim-fade-in-up anim-delay-4" style={{ justifyContent: 'stretch', flex: 1 }}>
+            <h3 className="section-title">
+              <Sparkles className="text-primary" size={18} />
+              Gợi ý từ AI
+            </h3>
+            <p className="text-muted" style={{ fontSize: '14px', lineHeight: 1.6, marginBottom: '20px' }}>
+              Hệ thống phân tích khuyên bạn nên làm quen với các mẫu câu đặc trưng (Redemittel) của trình độ <strong style={{ color: 'var(--primary)' }}>{userProfile.level}</strong> chuyên ngành <strong style={{ color: 'var(--primary)' }}>{getSpecialtyName(userProfile.specialty)}</strong> để nâng cao band điểm nhanh nhất.
+            </p>
+            
+            <div className="ai-insight-box" style={{ marginBottom: '20px' }}>
+              <div className="ai-insight-label">Đề xuất hành động</div>
+              <div className="ai-insight-text">Luyện viết một đề viết mới và áp dụng tối thiểu 3 câu mẫu Redemittel hữu ích.</div>
+            </div>
+
+            <button className="btn btn-primary mt-auto" onClick={() => setActiveTab('schreiben')} aria-label="Đi đến luyện viết">
+              Luyện Viết Ngay
+              <ChevronRight size={16} />
+            </button>
           </div>
 
-          <button className="btn btn-primary mt-auto" onClick={() => setActiveTab('schreiben')} aria-label="Đi đến luyện viết">
-            Luyện Viết Ngay
-            <ChevronRight size={16} />
-          </button>
+          {/* Account Status and Quotas Card */}
+          <div className="glass-panel panel-lg flex-col anim-fade-in-up anim-delay-5">
+            <h3 className="section-title">
+              <User className="text-primary" size={18} />
+              Tài khoản & Hạn mức
+            </h3>
+            
+            {currentUser ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
+                <div className="flex-between">
+                  <span className="text-muted" style={{ fontSize: '13px' }}>Gói hiện tại:</span>
+                  <span className="badge badge-success" style={{ fontWeight: '700' }}>
+                    {userProfile.subscription?.planId === 'free' ? 'Basis (Miễn phí)' : 
+                     userProfile.subscription?.planId === 'plus' ? 'B2 Plus' : 
+                     userProfile.subscription?.planId === 'pro' ? 'B2 Pro (Premium)' : 
+                     userProfile.subscription?.planId === 'intensive' ? 'Intensiv (Nước rút)' : 'Basis (Miễn phí)'}
+                  </span>
+                </div>
+                
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
+                  <div className="flex-between" style={{ marginBottom: '6px', fontSize: '13px' }}>
+                    <span>Lượt dùng AI (Credits):</span>
+                    <strong style={{ color: 'var(--primary)' }}>
+                      {userProfile.subscription?.planId === 'free' ? 'Học thử miễn phí' : `${userProfile.quota?.aiCredits ?? 0} lượt`}
+                    </strong>
+                  </div>
+                  {userProfile.subscription?.planId && userProfile.subscription?.planId !== 'free' && (
+                    <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{ 
+                        width: `${Math.min(100, ((userProfile.quota?.aiCredits ?? 0) / (userProfile.subscription?.planId === 'plus' ? 20 : userProfile.subscription?.planId === 'pro' ? 60 : 150)) * 100)}%`, 
+                        height: '100%', 
+                        background: 'var(--primary)' 
+                      }}></div>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div className="flex-between" style={{ marginBottom: '6px', fontSize: '13px' }}>
+                    <span>Số phút phát âm (Speech):</span>
+                    <strong style={{ color: 'var(--success)' }}>
+                      {userProfile.subscription?.planId === 'free' ? 'Học thử miễn phí' : `${Math.round(userProfile.quota?.speechMinutes ?? 0)} phút`}
+                    </strong>
+                  </div>
+                  {userProfile.subscription?.planId && userProfile.subscription?.planId !== 'free' && (
+                    <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{ 
+                        width: `${Math.min(100, ((userProfile.quota?.speechMinutes ?? 0) / (userProfile.subscription?.planId === 'plus' ? 60 : userProfile.subscription?.planId === 'pro' ? 180 : 600)) * 100)}%`, 
+                        height: '100%', 
+                        background: 'var(--success)' 
+                      }}></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
+                <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', padding: '10px 14px', borderRadius: '10px', fontSize: '12px', lineHeight: 1.5, color: '#f59e0b' }}>
+                  ⚠️ Bạn đang sử dụng tài khoản Khách. Tiến trình học và kết quả làm bài của bạn chỉ lưu tạm ở trình duyệt này.
+                </div>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={onAuthClick}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                >
+                  <Sparkles size={16} />
+                  Đăng ký tài khoản miễn phí
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -436,15 +536,22 @@ export default function DashboardView({ setActiveTab, userStreak, userProfile, s
                     <span className="badge badge-secondary" style={{ fontSize: '10.5px' }}>{getPiperStatusText()}</span>
                   </div>
                   
-                  {piperStatus === 'not_loaded' && (
-                    <button 
-                      type="button" 
-                      className="btn btn-secondary btn-sm" 
-                      onClick={() => setShowConfirmPopup(true)}
-                      style={{ width: '100%', fontSize: '12px', padding: '6px' }}
-                    >
-                      Tải gói giọng nói (63MB)
-                    </button>
+                  {(piperStatus === 'not_loaded' || piperStatus === 'error') && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                      {piperStatus === 'error' && (
+                        <p style={{ fontSize: '11px', color: '#ff6b6b', margin: '0 0 4px 0', lineHeight: '1.4', textAlign: 'left' }}>
+                          ⚠️ {piperProgressMsg || 'Lỗi tải mô hình. Vui lòng kết nối mạng hoặc thử lại.'}
+                        </p>
+                      )}
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary btn-sm" 
+                        onClick={() => setShowConfirmPopup(true)}
+                        style={{ width: '100%', fontSize: '12px', padding: '6px' }}
+                      >
+                        {piperStatus === 'error' ? 'Thử tải lại' : 'Tải gói giọng nói (63MB)'}
+                      </button>
+                    </div>
                   )}
 
                   {(piperStatus === 'downloading' || piperStatus === 'initializing') && (

@@ -15,8 +15,9 @@ import AnimatedScore from './AnimatedScore';
 import { chatWithExaminer, gradeSpeaking } from '../services/aiService';
 import { recordAttempt } from '../utils/learningStore';
 import { speak, stop } from '../services/ttsService';
+import { deductSpeechMinutesOnDb } from '../services/dbService';
 
-export default function SprechenView({ showToast, onActivityComplete }) {
+export default function SprechenView({ showToast, onActivityComplete, currentUser, onAuthClick }) {
   const [selectedSpeakTopic, setSelectedSpeakTopic] = useState(SPRECHEN_TOPICS[0]);
   const [speakChat, setSpeakChat] = useState(SPRECHEN_TOPICS[0].aiMessages);
   const [isRecording, setIsRecording] = useState(false);
@@ -30,6 +31,7 @@ export default function SprechenView({ showToast, onActivityComplete }) {
   const chatEndRef = useRef(null);
   const recognitionRef = useRef(null);
   const timerRef = useRef(null);
+  const startTimeRef = useRef(0);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -100,6 +102,11 @@ export default function SprechenView({ showToast, onActivityComplete }) {
 
   // Speech-to-Text (STT) initialization
   const startSpeechRecognition = () => {
+    if (!currentUser) {
+      showToast('Hội thoại với giám khảo AI là tính năng Premium. Vui lòng đăng nhập hoặc đăng ký tài khoản miễn phí để trải nghiệm!', 'warning');
+      onAuthClick();
+      return;
+    }
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     
     if (!SpeechRecognition) {
@@ -116,11 +123,13 @@ export default function SprechenView({ showToast, onActivityComplete }) {
 
       recognition.onstart = () => {
         setIsRecording(true);
+        startTimeRef.current = Date.now();
       };
 
       recognition.onresult = (event) => {
         const userSpeechText = event.results[0][0].transcript;
-        handleUserSpeechResult(userSpeechText);
+        const durationMins = startTimeRef.current ? (Date.now() - startTimeRef.current) / 60000 : 0.05;
+        handleUserSpeechResult(userSpeechText, durationMins);
       };
 
       recognition.onerror = (event) => {
@@ -152,13 +161,17 @@ export default function SprechenView({ showToast, onActivityComplete }) {
     }
   };
 
-  const handleUserSpeechResult = async (text) => {
+  const handleUserSpeechResult = async (text, durationMins = 0.05) => {
     const newUserMsg = { id: Date.now(), sender: 'user', text };
     const newChat = [...speakChat, newUserMsg];
     setSpeakChat(newChat);
 
     setIsAiTyping(true);
     try {
+      if (currentUser) {
+        await deductSpeechMinutesOnDb(currentUser.uid, durationMins);
+      }
+
       const aiText = await chatWithExaminer(
         selectedSpeakTopic.title,
         selectedSpeakTopic.scenario,
@@ -177,13 +190,18 @@ export default function SprechenView({ showToast, onActivityComplete }) {
       speakText(aiText);
     } catch (err) {
       console.error(err);
-      showToast('Lỗi khi tải phản hồi từ giám khảo AI.', 'warning');
+      showToast(err.message || 'Lỗi khi tải phản hồi từ giám khảo AI.', 'warning');
     } finally {
       setIsAiTyping(false);
     }
   };
 
   const handleSpeakEvaluation = async () => {
+    if (!currentUser) {
+      showToast('Tính năng chấm điểm Nói bằng AI yêu cầu đăng nhập tài khoản. Vui lòng đăng nhập hoặc đăng ký tài khoản miễn phí để tiếp tục!', 'warning');
+      onAuthClick();
+      return;
+    }
     setIsSpeakGrading(true);
     try {
       const evaluationResult = await gradeSpeaking(

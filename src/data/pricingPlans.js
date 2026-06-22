@@ -9,7 +9,7 @@ export const PRICING_PLANS = [
     ],
   },
   {
-    id: 'plus', name: 'B2 Plus', eyebrow: 'Học đều mỗi tuần', description: 'Phù hợp người học 3–4 buổi/tuần', monthlyPrice: 149000,
+    id: 'plus', name: 'B2 Plus', eyebrow: 'Học đều mỗi tuần', description: 'Phù hợp người học 3–4 buổi/tuần', monthlyPrice: 49000,
     quota: '20 AI credits · 60 phút Speech/tháng',
     features: [
       ['Toàn bộ tính năng Basis', true], ['20 lượt chấm hoặc hội thoại AI', true], ['60 phút Azure AI Speech', true],
@@ -17,7 +17,7 @@ export const PRICING_PLANS = [
     ],
   },
   {
-    id: 'pro', name: 'B2 Pro', eyebrow: 'Phổ biến nhất', description: 'Luyện thi tăng tốc và sửa bài thường xuyên', monthlyPrice: 299000, featured: true,
+    id: 'pro', name: 'B2 Pro', eyebrow: 'Phổ biến nhất', description: 'Luyện thi tăng tốc và sửa bài thường xuyên', monthlyPrice: 99000, featured: true,
     quota: '60 AI credits · 180 phút Speech/tháng',
     features: [
       ['Toàn bộ tính năng B2 Plus', true], ['60 lượt chấm hoặc hội thoại AI', true], ['180 phút Azure AI Speech', true],
@@ -25,7 +25,7 @@ export const PRICING_PLANS = [
     ],
   },
   {
-    id: 'intensive', name: 'Intensiv', eyebrow: 'Nước rút', description: 'Dành cho giai đoạn sát ngày thi', monthlyPrice: 499000,
+    id: 'intensive', name: 'Intensiv', eyebrow: 'Nước rút', description: 'Dành cho giai đoạn sát ngày thi', monthlyPrice: 199000,
     quota: '150 AI credits · 600 phút Speech/tháng',
     features: [
       ['Toàn bộ tính năng B2 Pro', true], ['150 lượt chấm hoặc hội thoại AI', true], ['600 phút Azure AI Speech', true],
