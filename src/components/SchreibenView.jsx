@@ -253,36 +253,43 @@ export default function SchreibenView({ showToast, onActivityComplete, currentUs
               aria-label="Bài viết tiếng Đức"
             ></textarea>
 
-            <div className="flex-end gap-md" style={{ marginTop: '14px' }}>
-              {activeHistoryId ? (
-                <button className="btn btn-secondary flex-row gap-sm" onClick={handleNewDraft}>
-                  <Sparkles size={16} />
-                  Viết bài mới
-                </button>
-              ) : (
-                <>
-                  <button className="btn btn-secondary" onClick={() => setWriteText('')} aria-label="Xóa tất cả">
-                    Xóa tất cả
+            <div className="flex-end gap-md" style={{ marginTop: '14px', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <div className="flex-row gap-md">
+                {activeHistoryId ? (
+                  <button className="btn btn-secondary flex-row gap-sm" onClick={handleNewDraft}>
+                    <Sparkles size={16} />
+                    Viết bài mới
                   </button>
-                  <button 
-                    className="btn btn-primary" 
-                    onClick={handleSchreibenGrade}
-                    disabled={isWritingGrading}
-                    aria-label="Nộp bài và nhận xét"
-                  >
-                    {isWritingGrading ? (
-                      <>
-                        <RefreshCw className="spin-slow" size={16} />
-                        Đang phân tích bài viết...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles size={16} />
-                        Nộp bài & Nhận xét
-                      </>
-                    )}
-                  </button>
-                </>
+                ) : (
+                  <>
+                    <button className="btn btn-secondary" onClick={() => setWriteText('')} aria-label="Xóa tất cả">
+                      Xóa tất cả
+                    </button>
+                    <button 
+                      className="btn btn-primary" 
+                      onClick={handleSchreibenGrade}
+                      disabled={isWritingGrading}
+                      aria-label="Nộp bài và nhận xét"
+                    >
+                      {isWritingGrading ? (
+                        <>
+                          <RefreshCw className="spin-slow" size={16} />
+                          Đang phân tích bài viết...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={16} />
+                          Nộp bài & Nhận xét
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
+              {!activeHistoryId && (
+                <p className="text-muted" style={{ fontSize: '11px', marginTop: '6px', textAlign: 'right' }}>
+                  * Lưu ý: Thao tác "Nộp bài & Nhận xét" sẽ sử dụng API AI và trừ 1 lượt chấm (AI credit) trong tài khoản.
+                </p>
               )}
             </div>
           </div>

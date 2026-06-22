@@ -1675,6 +1675,12 @@ ${writingAnswers.task3 || '(Không có bài viết)'}
                     Chấm bài Nói bằng AI (1 credit)
                   </button>
                 )}
+
+                {((sessionResults.schreibenDrafts && sessionResults.schreiben === null) || (sessionResults.sprechenDrafts && sessionResults.sprechen === null)) && (
+                  <p className="text-muted" style={{ fontSize: '11px', marginTop: '10px', textAlign: 'center' }}>
+                    * Lưu ý: Thao tác chấm điểm bằng AI sẽ kết nối đến API và trừ 1 lượt chấm (AI credit) trong tài khoản của bạn.
+                  </p>
+                )}
               </div>
             </div>
 

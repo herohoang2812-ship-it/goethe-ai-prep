@@ -352,37 +352,42 @@ export default function SprechenView({ showToast, onActivityComplete, currentUse
                 )}
               </div>
 
-              <div className="flex-row gap-md">
-                {isRecording ? (
-                  <button className="btn btn-danger" onClick={handleStopRecord} aria-label="Dừng ghi âm và gửi">
-                    <Square size={16} />
-                    Dừng & Gửi
-                  </button>
-                ) : (
-                  <button className="btn btn-primary" onClick={startSpeechRecognition} aria-label="Bắt đầu ghi âm">
-                    <Mic size={16} />
-                    Bắt đầu nói
-                  </button>
-                )}
-                
-                <button 
-                  className="btn btn-secondary" 
-                  onClick={handleSpeakEvaluation} 
-                  disabled={speakChat.length < 4 || isSpeakGrading}
-                  aria-label="Xem đánh giá nói"
-                >
-                  {isSpeakGrading ? (
-                    <>
-                      <RefreshCw className="spin-slow" size={16} />
-                      Đang phân tích...
-                    </>
+              <div className="flex-col gap-sm" style={{ width: '100%', alignItems: 'center', marginTop: '10px' }}>
+                <div className="flex-row gap-md">
+                  {isRecording ? (
+                    <button className="btn btn-danger" onClick={handleStopRecord} aria-label="Dừng ghi âm và gửi">
+                      <Square size={16} />
+                      Dừng & Gửi
+                    </button>
                   ) : (
-                    <>
-                      <Award size={16} />
-                      Xem Đánh Giá
-                    </>
+                    <button className="btn btn-primary" onClick={startSpeechRecognition} aria-label="Bắt đầu ghi âm">
+                      <Mic size={16} />
+                      Bắt đầu nói
+                    </button>
                   )}
-                </button>
+                  
+                  <button 
+                    className="btn btn-secondary" 
+                    onClick={handleSpeakEvaluation} 
+                    disabled={speakChat.length < 4 || isSpeakGrading}
+                    aria-label="Xem đánh giá nói"
+                  >
+                    {isSpeakGrading ? (
+                      <>
+                        <RefreshCw className="spin-slow" size={16} />
+                        Đang phân tích...
+                      </>
+                    ) : (
+                      <>
+                        <Award size={16} />
+                        Xem Đánh Giá
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-muted" style={{ fontSize: '11px', marginTop: '6px', textAlign: 'center' }}>
+                  * Lưu ý: Mỗi lượt nói (trò chuyện cùng AI) và hành động "Xem Đánh Giá" sẽ gọi API AI, khấu trừ hạn mức nói (speech minutes) hoặc lượt chấm nâng cao (AI credit) của bạn.
+                </p>
               </div>
             </div>
           </div>
