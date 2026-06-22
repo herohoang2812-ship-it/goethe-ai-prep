@@ -33,7 +33,7 @@ export default function LeaderboardView({ currentUser, userProfile }) {
     try {
       if (db) {
         const leaderRef = collection(db, 'leaderboard');
-        const q = query(leaderRef, limit(30));
+        const q = query(leaderRef, limit(100));
         const querySnapshot = await getDocs(q);
         
         let fetchedUsers = [];
@@ -97,7 +97,7 @@ export default function LeaderboardView({ currentUser, userProfile }) {
             Bảng xếp hạng Goethe Prep
           </h1>
           <p className="content-subtitle">
-            Thi đua học tập cùng các học viên tiếng Đức trên hệ thống qua 4 kỹ năng chính.
+            Thi đua học tập cùng TOP 100 học viên tiếng Đức xuất sắc nhất trên hệ thống qua 4 kỹ năng chính.
           </p>
         </div>
         <button 
