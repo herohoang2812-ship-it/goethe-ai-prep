@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { BadgeCheck, Check, ChevronRight, CircleDollarSign, Copy, Info, LockKeyhole, ShieldCheck, Sparkles, X } from 'lucide-react';
 import { BILLING_DISCOUNT, formatVnd, getPlanPrice, PRICING_PLANS } from '../data/pricingPlans';
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
 export default function PricingView({ showToast, currentUser, userProfile, onAuthClick }) {
@@ -17,6 +17,11 @@ export default function PricingView({ showToast, currentUser, userProfile, onAut
   const pendingPlan = useMemo(() => {
     try { return JSON.parse(localStorage.getItem('goethe_pending_subscription') || 'null'); } catch { return null; }
   }, []);
+
+  // Lấy thông tin tài khoản Techcombank mặc định của chủ ứng dụng
+  const bankId = import.meta.env.VITE_BANK_ID || 'TCB';
+  const bankAccount = import.meta.env.VITE_BANK_ACCOUNT || '19032995633019';
+  const bankAccountName = import.meta.env.VITE_BANK_ACCOUNT_NAME || 'HOANG ANH HUNG';
 
   // Lắng nghe sự kiện Firestore realtime khi có activeSession
   useEffect(() => {
@@ -42,7 +47,6 @@ export default function PricingView({ showToast, currentUser, userProfile, onAut
           showToast?.('Yêu cầu thanh toán của bạn đã bị từ chối. Vui lòng kiểm tra lại giao dịch.', 'warning');
           setActiveSession(null);
         } else if (data.status === 'pending_approval' && activeSession.status !== 'pending_approval') {
-          // Cập nhật trạng thái hiển thị nếu thay đổi từ bên ngoài
           setActiveSession(prev => ({ ...prev, status: 'pending_approval' }));
         }
       }
@@ -80,38 +84,37 @@ export default function PricingView({ showToast, currentUser, userProfile, onAut
 
     setLoading(true);
     try {
-      const response = await fetch('/api/create-payment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          uid: currentUser.uid,
-          planId: selectedPlan.id,
-          billing
-        })
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Lỗi khởi tạo thanh toán');
+      const orderCode = Date.now();
+      let price = selectedPlan.monthlyPrice;
+      if (billing === 'annual') {
+        const discountedMonthly = Math.round((selectedPlan.monthlyPrice * 0.8) / 1000) * 1000;
+        price = discountedMonthly * 12;
       }
 
-      // Lưu lựa chọn chờ xử lý cục bộ
-      const pending = {
+      // Tạo phiên thanh toán trực tiếp từ Client trên Firestore
+      const sessionDocRef = doc(db, 'payment_sessions', String(orderCode));
+      await setDoc(sessionDocRef, {
+        orderCode,
+        uid: currentUser.uid,
+        name: userProfile?.name || 'Học viên Goethe',
+        email: currentUser.email || 'N/A',
         planId: selectedPlan.id,
         billing,
-        price: getPlanPrice(selectedPlan, billing),
-        status: 'pending_payment',
-        createdAt: new Date().toISOString()
-      };
-      localStorage.setItem('goethe_pending_subscription', JSON.stringify(pending));
-      
+        amount: price,
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+
       // Thiết lập session thanh toán active để mở QR Code
-      setActiveSession(data);
+      setActiveSession({
+        orderCode,
+        amount: price,
+        description: `GT ${orderCode}`,
+        status: 'pending'
+      });
     } catch (error) {
       console.error('[PricingView] Payment Error:', error);
-      showToast?.(error.message || 'Không thể kết nối đến cổng thanh toán. Vui lòng thử lại sau.', 'warning');
+      showToast?.('Không thể tạo phiên giao dịch trên Cloud. Vui lòng thử lại sau.', 'warning');
     } finally {
       setLoading(false);
     }
@@ -185,7 +188,7 @@ export default function PricingView({ showToast, currentUser, userProfile, onAut
                 <div className="qr-image-wrapper">
                   <img 
                     className="qr-image" 
-                    src={`https://img.vietqr.io/image/${import.meta.env.VITE_BANK_ID || 'TCB'}-${import.meta.env.VITE_BANK_ACCOUNT || '123456789'}-compact2.png?amount=${activeSession.amount}&addInfo=${encodeURIComponent(activeSession.description)}&accountName=${encodeURIComponent(import.meta.env.VITE_BANK_ACCOUNT_NAME || 'NGUYEN VAN A')}`} 
+                    src={`https://img.vietqr.io/image/${bankId}-${bankAccount}-compact2.png?amount=${activeSession.amount}&addInfo=${encodeURIComponent(activeSession.description)}&accountName=${encodeURIComponent(bankAccountName)}`} 
                     alt="VietQR Techcombank" 
                   />
                 </div>
@@ -206,8 +209,8 @@ export default function PricingView({ showToast, currentUser, userProfile, onAut
                   <div className="qr-detail-row">
                     <span className="qr-detail-label">Số tài khoản</span>
                     <span className="qr-detail-value">
-                      {import.meta.env.VITE_BANK_ACCOUNT || '123456789'}
-                      <button className="qr-copy-btn" onClick={() => copyToClipboard(import.meta.env.VITE_BANK_ACCOUNT || '123456789', 'Đã sao chép số tài khoản nhận!')}>
+                      {bankAccount}
+                      <button className="qr-copy-btn" onClick={() => copyToClipboard(bankAccount, 'Đã sao chép số tài khoản nhận!')}>
                         <Copy size={11} />
                       </button>
                     </span>

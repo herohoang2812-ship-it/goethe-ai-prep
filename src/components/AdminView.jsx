@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { doc, updateDoc, collection, onSnapshot, query, where } from 'firebase/firestore';
 import { 
   Users, 
   Radio, 
@@ -16,6 +16,12 @@ import {
   Calendar 
 } from 'lucide-react';
 import { formatVnd, PRICING_PLANS } from '../data/pricingPlans';
+
+const QUOTAS = {
+  plus: { aiCredits: 20, speechMinutes: 60 },
+  pro: { aiCredits: 60, speechMinutes: 180 },
+  intensive: { aiCredits: 150, speechMinutes: 600 }
+};
 
 export default function AdminView({ currentUser, showToast }) {
   const [users, setUsers] = useState([]);
@@ -88,34 +94,51 @@ export default function AdminView({ currentUser, showToast }) {
     return { totalStudents, activeToday, onlineNow };
   }, [users]);
 
-  // 4. Gọi API duyệt hoặc từ chối gói cước
-  const handleAdminAction = async (orderCode, action) => {
+  // 4. Duyệt hoặc từ chối gói cước trực tiếp từ Client (được Rules cho phép)
+  const handleAdminAction = async (session, action) => {
     if (!currentUser) return;
+    const { orderCode, uid: studentUid, planId, billing } = session;
     setLoadingCode(orderCode);
     try {
-      const response = await fetch('/api/admin-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          adminUid: currentUser.uid,
-          action,
-          orderCode
-        })
+      const sessionDocRef = doc(db, 'payment_sessions', String(orderCode));
+      if (action === 'reject') {
+        await updateDoc(sessionDocRef, {
+          status: 'rejected',
+          processedAt: new Date().toISOString(),
+          processedBy: currentUser.uid
+        });
+        showToast?.(`Đã từ chối đơn hàng #${orderCode}.`, 'warning');
+        return;
+      }
+
+      // Xử lý Duyệt ('approve') nâng cấp gói cước
+      const studentDocRef = doc(db, 'users', studentUid);
+      const days = billing === 'annual' ? 365 : 30;
+      const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+      const quota = QUOTAS[planId] || { aiCredits: 3, speechMinutes: 10 };
+
+      // Cập nhật subscription và quota của học viên trực tiếp trên client
+      await updateDoc(studentDocRef, {
+        'subscription.planId': planId,
+        'subscription.status': 'active',
+        'subscription.startDate': new Date().toISOString(),
+        'subscription.endDate': endDate,
+        'quota.aiCredits': quota.aiCredits,
+        'quota.speechMinutes': quota.speechMinutes,
+        updatedAt: new Date().toISOString()
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Lỗi xử lý duyệt cước');
-      }
+      // Cập nhật phiên thanh toán thành công
+      await updateDoc(sessionDocRef, {
+        status: 'completed',
+        processedAt: new Date().toISOString(),
+        processedBy: currentUser.uid
+      });
 
-      if (action === 'approve') {
-        showToast?.(`Đã duyệt nâng cấp gói cước thành công đơn hàng #${orderCode}!`, 'success');
-      } else {
-        showToast?.(`Đã từ chối và hủy đơn hàng #${orderCode}.`, 'warning');
-      }
+      showToast?.(`Đã duyệt nâng cấp gói cước thành công đơn hàng #${orderCode}!`, 'success');
     } catch (err) {
       console.error('[AdminView] Lỗi duyệt gói cước:', err);
-      showToast?.(err.message || 'Không thể kết nối máy chủ quản trị.', 'error');
+      showToast?.('Không có quyền hoặc lỗi kết nối dữ liệu duyệt cước.', 'error');
     } finally {
       setLoadingCode(null);
     }
@@ -233,7 +256,7 @@ export default function AdminView({ currentUser, showToast }) {
                           className="btn btn-primary" 
                           style={{ padding: '6px 12px', fontSize: '12px', gap: '4px', background: 'var(--success)', borderColor: 'var(--success)', color: '#fff' }}
                           disabled={loadingCode !== null}
-                          onClick={() => handleAdminAction(session.orderCode, 'approve')}
+                          onClick={() => handleAdminAction(session, 'approve')}
                         >
                           <Check size={13} />
                           {loadingCode === session.orderCode ? 'Đang duyệt...' : 'Duyệt'}
@@ -242,7 +265,7 @@ export default function AdminView({ currentUser, showToast }) {
                           className="btn" 
                           style={{ padding: '6px 12px', fontSize: '12px', gap: '4px', borderColor: 'var(--warning)', color: 'var(--warning)', background: 'transparent' }}
                           disabled={loadingCode !== null}
-                          onClick={() => handleAdminAction(session.orderCode, 'reject')}
+                          onClick={() => handleAdminAction(session, 'reject')}
                         >
                           <X size={13} />
                           Hủy
