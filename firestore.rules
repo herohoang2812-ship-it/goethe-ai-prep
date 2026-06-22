@@ -21,7 +21,7 @@ service cloud.firestore {
         && request.resource.data.quota.aiCredits <= resource.data.quota.aiCredits
         && request.resource.data.quota.speechMinutes <= resource.data.quota.speechMinutes
         && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['name', 'level', 'specialty', 'profile', 'quota']);
+          .hasOnly(['name', 'level', 'specialty', 'profile', 'quota', 'avatarUrl']);
 
       allow delete: if false;
     }
