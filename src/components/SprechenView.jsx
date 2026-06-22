@@ -16,6 +16,7 @@ import { chatWithExaminer, gradeSpeaking } from '../services/aiService';
 import { recordAttempt } from '../utils/learningStore';
 import { speak, stop } from '../services/ttsService';
 import { deductSpeechMinutesOnDb } from '../services/dbService';
+import GradingOverlay from './GradingOverlay';
 
 export default function SprechenView({ showToast, onActivityComplete, currentUser, onAuthClick }) {
   const [selectedSpeakTopic, setSelectedSpeakTopic] = useState(SPRECHEN_TOPICS[0]);
@@ -249,6 +250,7 @@ export default function SprechenView({ showToast, onActivityComplete, currentUse
 
   return (
     <div className="page-section">
+      <GradingOverlay isActive={isSpeakGrading} message="Đang đánh giá bài Nói bằng AI..." />
       <div className="content-header">
         <div>
           <h1 className="content-title">Sprechen Trainer</h1>

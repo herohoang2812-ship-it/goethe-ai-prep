@@ -13,6 +13,7 @@ import AnimatedScore from './AnimatedScore';
 import { gradeWriting } from '../services/aiService';
 import { recordAttempt } from '../utils/learningStore';
 import CorrectionPracticeCard from './CorrectionPracticeCard';
+import GradingOverlay from './GradingOverlay';
 
 export default function SchreibenView({ showToast, onActivityComplete, currentUser, onAuthClick }) {
   const [selectedWriteTopic, setSelectedWriteTopic] = useState(SCHREIBEN_TOPICS[0]);
@@ -122,6 +123,7 @@ export default function SchreibenView({ showToast, onActivityComplete, currentUs
 
   return (
     <div className="page-section">
+      <GradingOverlay isActive={isWritingGrading} message="Đang chấm bài Viết bằng AI..." />
       <div className="content-header">
         <div>
           <h1 className="content-title">Schreiben Coach</h1>

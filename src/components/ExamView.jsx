@@ -31,6 +31,8 @@ import { recordAttempt } from '../utils/learningStore';
 import { syncUserLeaderboard, deductSpeechMinutesOnDb } from '../services/dbService';
 import AnimatedScore from './AnimatedScore';
 import CorrectionPracticeCard from './CorrectionPracticeCard';
+import GradingOverlay from './GradingOverlay';
+import TypingIndicator from './TypingIndicator';
 
 const MODULE_TIMES = {
   lesen: 65 * 60,    // 65 minutes
@@ -300,6 +302,14 @@ export default function ExamView({ showToast, onActivityComplete, currentUser, o
       rec.start();
     } catch (err) {
       console.error(err);
+      setIsRecording(false);
+    }
+  };
+
+  const handleStopRecord = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    } else {
       setIsRecording(false);
     }
   };
@@ -692,6 +702,8 @@ ${writingAnswers.task3 || '(Không có bài viết)'}
 
   return (
     <div className="page-section">
+      <GradingOverlay isActive={isGradingSchreiben} message="Hệ thống AI đang chấm điểm bài thi Viết của bạn..." />
+      <GradingOverlay isActive={isGradingSprechen} message="Hệ thống AI đang chấm điểm bài thi Nói của bạn..." />
       {/* ===================== DASHBOARD MODE ===================== */}
       {activeMode === 'dashboard' && (
         <div className="anim-fade-in-up">
