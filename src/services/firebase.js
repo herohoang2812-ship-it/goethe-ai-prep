@@ -16,9 +16,21 @@ const firebaseConfig = {
 };
 
 // Khởi tạo Firebase App
-const app = initializeApp(firebaseConfig);
+let app = null;
+let auth = null;
+let db = null;
 
-// Khởi tạo các dịch vụ Auth và Firestore
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+if (firebaseConfig.apiKey) {
+  try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+  } catch (error) {
+    console.error('[Firebase] Lỗi khởi tạo:', error);
+  }
+} else {
+  console.warn('[Firebase] Thiếu cấu hình VITE_FIREBASE_API_KEY. Chạy ở chế độ Guest/Offline.');
+}
+
+export { auth, db };
 export default app;
